@@ -1,0 +1,19 @@
+name: rust_ready
+description: install rust-toolchain and cache
+runs:
+  using: composite
+
+  steps:
+    - name: Install toolchains
+      uses: dtolnay/rust-toolchain@stable
+    - name: Cache cargo registry
+      uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-cargo-
