@@ -1,6 +1,7 @@
 mod config;
+use crate::config::Config;
 
 pub fn run() {
-  // print config path
-  println!("Config Path: {}", config::get_config_path());
+  let config = Config::new();
+  println!("Config Path: {}", config.config_path);
 }
