@@ -1,4 +1,6 @@
 extern crate popi;
+use std::path::PathBuf;
+
 use popi::config::{Config, LoadConfigError};
 
 #[test]
@@ -7,7 +9,7 @@ fn loading_no_paths_config_file() {
   assert_eq!(
     err,
     LoadConfigError::NoPathsConfigFileFound {
-      config_path: "tests/fixtures/config_0".to_string()
+      config_path: PathBuf::from("tests/fixtures/config_0")
     }
   );
 }
