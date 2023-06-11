@@ -13,7 +13,7 @@ pub fn run() {
         eprintln!(
           "{} {}\nRun this to edit: {}",
           " ✖ERROR ".on_red().white().bold(),
-          "paths.yml not found in your config directory.",
+          "paths.yml not found in your config directory.".red(),
           format!("$ vim \"{}\"", config_path.to_str().unwrap()).bold(),
         );
       }
