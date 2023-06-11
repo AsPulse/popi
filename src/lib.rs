@@ -1,5 +1,6 @@
 mod config;
 
 pub fn run() {
-  config::run();
+  // print config path
+  println!("Config Path: {}", config::get_config_path());
 }
