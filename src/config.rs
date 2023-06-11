@@ -51,18 +51,21 @@ fn load_config(config_path: PathBuf) -> Result<Config, LoadConfigError> {
   let paths_payload = YamlLoader::load_from_str(&paths_yml)
     .map_err(|_| LoadConfigError::PathConfigInvalidYamlFormat)?;
 
-  let repos = &paths_payload[0]["repos"].as_vec().ok_or(LoadConfigError::PathConfigInvalidYamlFormat)?;
-  let repo_paths = &repos.iter().map(|repo| {
-    let repo_path = repo.as_str().ok_or(LoadConfigError::PathConfigInvalidYamlFormat)?;
-    Ok(
-      PathBuf::from(repo_path)
-    )
-  }).collect::<Result<Vec<PathBuf>, LoadConfigError>>()?;
-
+  let repos = &paths_payload[0]["repos"]
+    .as_vec()
+    .ok_or(LoadConfigError::PathConfigInvalidYamlFormat)?;
+  let repo_paths = &repos
+    .iter()
+    .map(|repo| {
+      let repo_path = repo
+        .as_str()
+        .ok_or(LoadConfigError::PathConfigInvalidYamlFormat)?;
+      Ok(PathBuf::from(repo_path))
+    })
+    .collect::<Result<Vec<PathBuf>, LoadConfigError>>()?;
 
   Ok(Config {
     config_path,
     repo_paths: repo_paths.clone(),
   })
 }
-

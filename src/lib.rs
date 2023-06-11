@@ -1,4 +1,3 @@
 pub mod config;
 
-pub fn run() {
-}
+pub fn run() {}
