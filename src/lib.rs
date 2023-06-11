@@ -8,13 +8,13 @@ pub fn run() {
   let _config = Config::new().unwrap_or_else(|err| {
     match err {
       LoadConfigError::NoPathsConfigFileFound { config_path } => {
-        let mut config_file_path = config_path.clone();
-        config_file_path.push("paths.yml");
+        let mut config_path = config_path;
+        config_path.push("paths.yml");
         eprintln!(
           "{} {}\nRun this to edit: {}",
           " ✖ERROR ".on_red().white().bold(),
           "paths.yml not found in your config directory.",
-          format!("$ vim \"{}\"", config_file_path.to_str().unwrap()).bold(),
+          format!("$ vim \"{}\"", config_path.to_str().unwrap()).bold(),
         );
       }
       LoadConfigError::PathConfigInvalidYamlFormat { paths_yml_path } => {
