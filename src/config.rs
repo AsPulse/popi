@@ -63,12 +63,15 @@ fn load_config(config_path: PathBuf) -> Result<Config, LoadConfigError> {
     }
   })?;
 
-  let repos =
-    &paths_payload[0]["repos"]
-      .as_vec()
-      .ok_or(LoadConfigError::PathConfigInvalidYamlFormat {
-        paths_yml_path: paths_yml_path.to_string(),
-      })?;
+  let repos = &paths_payload
+    .get(0)
+    .ok_or(LoadConfigError::PathConfigInvalidYamlFormat {
+      paths_yml_path: paths_yml_path.to_string(),
+    })?["repos"]
+    .as_vec()
+    .ok_or(LoadConfigError::PathConfigInvalidYamlFormat {
+      paths_yml_path: paths_yml_path.to_string(),
+    })?;
   let repo_paths = &repos
     .iter()
     .map(|repo| {
