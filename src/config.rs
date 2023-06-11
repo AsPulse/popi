@@ -1,5 +1,5 @@
 use dirs::config_local_dir;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use thiserror::Error;
 use yaml_rust::YamlLoader;
 
@@ -19,13 +19,13 @@ impl Config {
 
 // Try to load files with given order, if all files are not found, return Err
 fn read_file_with_priority(
-  config_path: &PathBuf,
+  config_path: &Path,
   file_names: Vec<&str>,
 ) -> Result<String, std::io::Error> {
   for file_name in file_names {
-    let mut path = config_path.clone();
-    path.push(file_name);
-    match std::fs::read_to_string(path) {
+    let mut config_path = config_path.to_path_buf();
+    config_path.push(file_name);
+    match std::fs::read_to_string(config_path) {
       Ok(content) => return Ok(content),
       Err(_) => continue,
     }
