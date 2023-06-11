@@ -1,5 +1,5 @@
 use dirs::config_local_dir;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 use yaml_rust::YamlLoader;
 
