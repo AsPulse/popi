@@ -31,7 +31,7 @@ fn read_file_with_priority(
     match std::fs::read_to_string(&config_path_reading) {
       Ok(content) => {
         return Ok((content, config_path_reading.to_str().unwrap().to_string()));
-      },
+      }
       Err(_) => continue,
     }
   }
@@ -44,31 +44,39 @@ fn read_file_with_priority(
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum LoadConfigError {
   #[error("Could not find any paths config file")]
-  NoPathsConfigFileFound {
-    config_path: PathBuf,
-  },
+  NoPathsConfigFileFound { config_path: PathBuf },
   #[error("Paths config has invalid yaml format")]
-  PathConfigInvalidYamlFormat {
-    paths_yml_path: String,
-  },
+  PathConfigInvalidYamlFormat { paths_yml_path: String },
 }
 
 fn load_config(config_path: PathBuf) -> Result<Config, LoadConfigError> {
-  let (paths_yml, paths_yml_path) = read_file_with_priority(&config_path, vec!["paths.yml", "paths.yaml"])
-    .map_err(|_| LoadConfigError::NoPathsConfigFileFound { config_path: config_path.to_path_buf() })?;
+  let (paths_yml, paths_yml_path) =
+    read_file_with_priority(&config_path, vec!["paths.yml", "paths.yaml"]).map_err(|_| {
+      LoadConfigError::NoPathsConfigFileFound {
+        config_path: config_path.to_path_buf(),
+      }
+    })?;
 
-  let paths_payload = YamlLoader::load_from_str(&paths_yml)
-    .map_err(|_| LoadConfigError::PathConfigInvalidYamlFormat { paths_yml_path: paths_yml_path.to_string() })?;
+  let paths_payload = YamlLoader::load_from_str(&paths_yml).map_err(|_| {
+    LoadConfigError::PathConfigInvalidYamlFormat {
+      paths_yml_path: paths_yml_path.to_string(),
+    }
+  })?;
 
-  let repos = &paths_payload[0]["repos"]
-    .as_vec()
-    .ok_or(LoadConfigError::PathConfigInvalidYamlFormat { paths_yml_path: paths_yml_path.to_string() })?;
+  let repos =
+    &paths_payload[0]["repos"]
+      .as_vec()
+      .ok_or(LoadConfigError::PathConfigInvalidYamlFormat {
+        paths_yml_path: paths_yml_path.to_string(),
+      })?;
   let repo_paths = &repos
     .iter()
     .map(|repo| {
       let repo_path = repo
         .as_str()
-        .ok_or(LoadConfigError::PathConfigInvalidYamlFormat { paths_yml_path: paths_yml_path.to_string() })?;
+        .ok_or(LoadConfigError::PathConfigInvalidYamlFormat {
+          paths_yml_path: paths_yml_path.to_string(),
+        })?;
       Ok(PathBuf::from(repo_path))
     })
     .collect::<Result<Vec<PathBuf>, LoadConfigError>>()?;
