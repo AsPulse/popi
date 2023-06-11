@@ -3,10 +3,12 @@ use popi::config::{Config, LoadConfigError};
 
 #[test]
 fn loading_no_paths_config_file() {
-  let config = Config::new_from_config_path("tests/fixtures/config_0".into());
+  let err = Config::new_from_config_path("tests/fixtures/config_0".into()).unwrap_err();
   assert_eq!(
-    config.err().unwrap(),
-    LoadConfigError::NoPathsConfigFileFound
+    err,
+    LoadConfigError::NoPathsConfigFileFound {
+      config_path: "tests/fixtures/config_0".to_string()
+    }
   );
 }
 
@@ -26,9 +28,11 @@ fn loading_correct_paths() {
 
 #[test]
 fn loading_broken_config() {
-  let config = Config::new_from_config_path("tests/fixtures/config_2".into());
+  let err = Config::new_from_config_path("tests/fixtures/config_2".into()).unwrap_err();
   assert_eq!(
-    config.err().unwrap(),
-    LoadConfigError::PathConfigInvalidYamlFormat
+    err,
+    LoadConfigError::PathConfigInvalidYamlFormat {
+      paths_yml_path: "tests/fixtures/config_2/paths.yml".to_string()
+    }
   );
 }
