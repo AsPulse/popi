@@ -29,3 +29,12 @@ jobs:
       - uses: ./.github/actions/rust_ready
       - name: clippy
         run: cargo clippy -- -Dwarnings
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/rust_ready
+      - name: test
+        run: cargo test --all -- --nocapture
