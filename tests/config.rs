@@ -38,3 +38,14 @@ fn loading_broken_config() {
     }
   );
 }
+
+#[test]
+fn loading_empty_config() {
+  let err = Config::new_from_config_path("tests/fixtures/config_3".into()).unwrap_err();
+  assert_eq!(
+    err,
+    LoadConfigError::PathConfigInvalidYamlFormat {
+      paths_yml_path: "tests/fixtures/config_3/paths.yml".to_string()
+    }
+  );
+}
