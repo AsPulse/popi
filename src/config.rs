@@ -11,7 +11,9 @@ pub struct Config {
 
 impl Config {
   pub fn new() -> Result<Self, LoadConfigError> {
-    Self::new_from_config_path(config_local_dir().unwrap())
+    let mut dir = config_local_dir().unwrap();
+    dir.push("popi");
+    Self::new_from_config_path(dir)
   }
   pub fn new_from_config_path(config_path: PathBuf) -> Result<Self, LoadConfigError> {
     load_config(config_path)
@@ -43,7 +45,7 @@ fn read_file_with_priority(
 pub enum LoadConfigError {
   #[error("Could not find any paths config file")]
   NoPathsConfigFileFound {
-    config_path: String,
+    config_path: PathBuf,
   },
   #[error("Paths config has invalid yaml format")]
   PathConfigInvalidYamlFormat {
@@ -53,7 +55,7 @@ pub enum LoadConfigError {
 
 fn load_config(config_path: PathBuf) -> Result<Config, LoadConfigError> {
   let (paths_yml, paths_yml_path) = read_file_with_priority(&config_path, vec!["paths.yml", "paths.yaml"])
-    .map_err(|_| LoadConfigError::NoPathsConfigFileFound { config_path: config_path.to_str().unwrap().to_string() })?;
+    .map_err(|_| LoadConfigError::NoPathsConfigFileFound { config_path: config_path.to_path_buf() })?;
 
   let paths_payload = YamlLoader::load_from_str(&paths_yml)
     .map_err(|_| LoadConfigError::PathConfigInvalidYamlFormat { paths_yml_path: paths_yml_path.to_string() })?;
