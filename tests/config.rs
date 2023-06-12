@@ -49,3 +49,9 @@ fn loading_empty_config() {
     }
   );
 }
+
+#[test]
+fn loading_config_with_no_paths() {
+  let config = Config::new_from_config_path("tests/fixtures/config_4".into()).unwrap();
+  assert_eq!(config.repo_paths.len(), 0);
+}
