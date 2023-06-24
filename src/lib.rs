@@ -1,4 +1,7 @@
 pub mod config;
+pub mod filter;
+pub mod finder;
+
 use colored::Colorize;
 use config::{LoadConfigError, LocalStorage};
 
