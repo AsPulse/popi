@@ -1,22 +1,22 @@
 extern crate popi;
 use std::path::PathBuf;
 
-use popi::config::{Config, LoadConfigError};
+use popi::config::{LocalStorage, LoadConfigError};
 
 #[test]
 fn loading_no_paths_config_file() {
-  let err = Config::new_from_config_path("tests/fixtures/config_0".into()).unwrap_err();
+  let err = LocalStorage::new_from_root_path("tests/fixtures/config_0".into()).unwrap_err();
   assert_eq!(
     err,
-    LoadConfigError::NoPathsConfigFileFound {
-      config_path: PathBuf::from("tests/fixtures/config_0")
+    LoadConfigError::NoConfigFileFound {
+      root_path: PathBuf::from("tests/fixtures/config_0")
     }
   );
 }
 
 #[test]
 fn loading_correct_paths() {
-  let config = Config::new_from_config_path("tests/fixtures/config_1".into()).unwrap();
+  let config = LocalStorage::new_from_root_path("tests/fixtures/config_1".into()).unwrap();
   assert_eq!(config.repo_paths.len(), 2);
   assert_eq!(
     config.repo_paths[0].to_str().unwrap(),
@@ -30,28 +30,28 @@ fn loading_correct_paths() {
 
 #[test]
 fn loading_broken_config() {
-  let err = Config::new_from_config_path("tests/fixtures/config_2".into()).unwrap_err();
+  let err = LocalStorage::new_from_root_path("tests/fixtures/config_2".into()).unwrap_err();
   assert_eq!(
     err,
-    LoadConfigError::PathConfigInvalidYamlFormat {
-      paths_yml_path: "tests/fixtures/config_2/paths.yml".to_string()
+    LoadConfigError::ConfigInvalidYamlFormat {
+      config_yml_path: "tests/fixtures/config_2/paths.yml".to_string()
     }
   );
 }
 
 #[test]
 fn loading_empty_config() {
-  let err = Config::new_from_config_path("tests/fixtures/config_3".into()).unwrap_err();
+  let err = LocalStorage::new_from_root_path("tests/fixtures/config_3".into()).unwrap_err();
   assert_eq!(
     err,
-    LoadConfigError::PathConfigInvalidYamlFormat {
-      paths_yml_path: "tests/fixtures/config_3/paths.yml".to_string()
+    LoadConfigError::ConfigInvalidYamlFormat {
+      config_yml_path: "tests/fixtures/config_3/paths.yml".to_string()
     }
   );
 }
 
 #[test]
 fn loading_config_with_no_paths() {
-  let config = Config::new_from_config_path("tests/fixtures/config_4".into()).unwrap();
+  let config = LocalStorage::new_from_root_path("tests/fixtures/config_4".into()).unwrap();
   assert_eq!(config.repo_paths.len(), 0);
 }
