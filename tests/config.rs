@@ -34,7 +34,7 @@ fn loading_broken_config() {
   assert_eq!(
     err,
     LoadConfigError::ConfigInvalidYamlFormat {
-      config_yml_path: "tests/fixtures/config_2/paths.yml".to_string()
+      config_yml_path: "tests/fixtures/config_2/config.yml".to_string()
     }
   );
 }
@@ -45,7 +45,7 @@ fn loading_empty_config() {
   assert_eq!(
     err,
     LoadConfigError::ConfigInvalidYamlFormat {
-      config_yml_path: "tests/fixtures/config_3/paths.yml".to_string()
+      config_yml_path: "tests/fixtures/config_3/config.yml".to_string()
     }
   );
 }
