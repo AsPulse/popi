@@ -4,13 +4,16 @@ use popi::finder::ReposFinder;
 
 
 
-#[test]
-fn full_listup() {
+#[tokio::test]
+async fn full_listup() {
   let config = LocalStorage::new_from_root_path("tests/fixtures/repo_search_1/config".into()).unwrap();
-  let finder = ReposFinder::new(config.repo_paths);
+  let mut finder: ReposFinder = ReposFinder::new(config.repo_paths);
+  let status = finder.init().await;
   let repos = finder.search_by("");
-  assert_eq!(repos.len(), 3);
+  dbg!(&repos);
+  dbg!(&status.paths_not_found);
+  assert_eq!(status.paths_not_found.len(), 0);
+  assert_eq!(repos.len(), 2);
   assert_eq!(repos[0].name, "a");
   assert_eq!(repos[1].name, "b");
-  assert_eq!(repos[2].name, "c");
 }

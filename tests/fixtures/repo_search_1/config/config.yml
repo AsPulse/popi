@@ -1,2 +1,2 @@
 repos:
-  - ../repos
+  - tests/fixtures/repo_search_1/repos
