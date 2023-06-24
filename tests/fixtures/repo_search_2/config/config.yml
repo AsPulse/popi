@@ -1,0 +1,3 @@
+repos:
+  - tests/fixtures/repo_search_2/repos-A
+  - tests/fixtures/repo_search_2/repos-B
