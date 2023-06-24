@@ -1,6 +1,6 @@
 pub struct PopiFilter {}
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct MatchedString {
   pub matched_start: usize,
   pub matched_length: usize,
@@ -192,6 +192,14 @@ mod test_fuzzy_match {
         matched_length: 7,
         distance: 1,
       })
+    );
+  }
+
+  #[test]
+  fn no_matched_with_empty_keyword() {
+    assert_eq!(
+      PopiFilter::fuzzy_match("", "abc"),
+      MatchedResult::NotMatched()
     );
   }
 }
