@@ -37,18 +37,18 @@ impl PopiFilter {
         .rev()
         .find(|c| c.1 == clipped_keyword.chars().last().unwrap())
         .map(|v| v.0);
-      if start.is_some() && end.is_some() && start.unwrap() <= end.unwrap() {
-        let start = start.unwrap();
-        let end = end.unwrap();
-        let clipped_target = &target[start..end + 1];
-        return MatchedResult::Matched(MatchedString {
-          matched_start: start,
-          matched_length: end - start + 1,
-          distance: usize::try_from(stringmetrics::levenshtein(clipped_target, clipped_keyword))
-            .unwrap()
-            + keyword_filter.0
-            + keyword_filter.1,
-        });
+      if let (Some(start), Some(end)) = (start, end) {
+        if start <= end {
+          let clipped_target = &target[start..end + 1];
+          return MatchedResult::Matched(MatchedString {
+            matched_start: start,
+            matched_length: end - start + 1,
+            distance: usize::try_from(stringmetrics::levenshtein(clipped_target, clipped_keyword))
+              .unwrap()
+              + keyword_filter.0
+              + keyword_filter.1,
+          });
+        }
       }
       keyword_filter = PopiFilter::next_start_and_end(keyword_filter);
     }
