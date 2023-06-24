@@ -22,14 +22,21 @@ impl PopiFilter {
       if keyword_filter.0 + keyword_filter.1 >= keyword_len {
         return MatchedResult::NotMatched();
       }
-      let clipped_keyword = &keyword[
-        keyword.char_indices().nth(keyword_filter.0).unwrap().0
-        ..
-        keyword.char_indices().nth(keyword_len - keyword_filter.1).map_or(keyword_len, |v| v.0)
-      ];
+      let clipped_keyword = &keyword[keyword.char_indices().nth(keyword_filter.0).unwrap().0
+        ..keyword
+          .char_indices()
+          .nth(keyword_len - keyword_filter.1)
+          .map_or(keyword_len, |v| v.0)];
 
-      let start = target.char_indices().find(|c| c.1 == clipped_keyword.chars().next().unwrap()).map(|v| v.0);
-      let end = target.char_indices().rev().find(|c| c.1 == clipped_keyword.chars().last().unwrap()).map(|v| v.0);
+      let start = target
+        .char_indices()
+        .find(|c| c.1 == clipped_keyword.chars().next().unwrap())
+        .map(|v| v.0);
+      let end = target
+        .char_indices()
+        .rev()
+        .find(|c| c.1 == clipped_keyword.chars().last().unwrap())
+        .map(|v| v.0);
       if start.is_some() && end.is_some() && start.unwrap() <= end.unwrap() {
         let start = start.unwrap();
         let end = end.unwrap();
@@ -37,7 +44,10 @@ impl PopiFilter {
         return MatchedResult::Matched(MatchedString {
           matched_start: start,
           matched_length: end - start + 1,
-          distance: usize::try_from(stringmetrics::levenshtein(clipped_target, clipped_keyword)).unwrap() + keyword_filter.0 + keyword_filter.1,
+          distance: usize::try_from(stringmetrics::levenshtein(clipped_target, clipped_keyword))
+            .unwrap()
+            + keyword_filter.0
+            + keyword_filter.1,
         });
       }
       keyword_filter = PopiFilter::next_start_and_end(keyword_filter);
@@ -52,7 +62,6 @@ impl PopiFilter {
       (start - 1, end + 1)
     }
   }
-
 }
 
 #[cfg(test)]
