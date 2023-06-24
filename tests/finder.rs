@@ -1,6 +1,6 @@
 extern crate popi;
 use popi::config::LocalStorage;
-use popi::finder::{ReposFinder};
+use popi::finder::ReposFinder;
 
 #[tokio::test]
 async fn listup_from_one_directory() {
@@ -55,8 +55,7 @@ async fn listup_with_unexisting_directory() {
 
 #[tokio::test]
 async fn search_by_1() {
-  let config =
-    LocalStorage::new_from_root_path("tests/fixtures/filter_1/config".into()).unwrap();
+  let config = LocalStorage::new_from_root_path("tests/fixtures/filter_1/config".into()).unwrap();
   let mut finder: ReposFinder = ReposFinder::new(config.repo_paths);
   let status = finder.init().await;
 

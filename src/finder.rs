@@ -2,7 +2,7 @@ use async_fs::read_dir;
 use futures::TryStreamExt;
 use std::path::PathBuf;
 
-use crate::filter::{PopiFilter, MatchedResult, MatchedString};
+use crate::filter::{MatchedResult, MatchedString, PopiFilter};
 
 pub struct ReposFinder {
   pub repo_paths: Vec<PathBuf>,
@@ -59,27 +59,29 @@ impl ReposFinder {
   }
 
   pub fn search_by(&self, keyword: &str) -> Vec<FoundRepo> {
-    let mut entries = self.repos.clone().unwrap()
+    let mut entries = self
+      .repos
+      .clone()
+      .unwrap()
       .into_iter()
       .map(|repo| {
         let name = repo.name.clone();
         (repo, PopiFilter::fuzzy_match(keyword, &name))
       })
-      .filter_map(|(repo, match_result)|
-        match match_result {
-          MatchedResult::Matched(result) => Some((repo, result)),
-          MatchedResult::NotMatched() => None,
-        }
-      )
+      .filter_map(|(repo, match_result)| match match_result {
+        MatchedResult::Matched(result) => Some((repo, result)),
+        MatchedResult::NotMatched() => None,
+      })
       .collect::<Vec<(Repo, MatchedString)>>();
 
     entries.sort_by(|(_, a), (_, b)| a.distance.partial_cmp(&b.distance).unwrap());
-    entries.into_iter().map(|(repo, matched_string)| {
-      FoundRepo {
+    entries
+      .into_iter()
+      .map(|(repo, matched_string)| FoundRepo {
         repo,
         matched_string,
-      }
-    }).collect::<Vec<FoundRepo>>()
+      })
+      .collect::<Vec<FoundRepo>>()
   }
 }
 
