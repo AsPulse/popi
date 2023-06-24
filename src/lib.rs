@@ -1,6 +1,6 @@
 pub mod config;
 use colored::Colorize;
-use config::{LocalStorage, LoadConfigError};
+use config::{LoadConfigError, LocalStorage};
 
 pub fn run() {
   startup_message();

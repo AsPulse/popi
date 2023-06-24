@@ -1,7 +1,7 @@
 extern crate popi;
 use std::path::PathBuf;
 
-use popi::config::{LocalStorage, LoadConfigError};
+use popi::config::{LoadConfigError, LocalStorage};
 
 #[test]
 fn loading_no_paths_config_file() {
