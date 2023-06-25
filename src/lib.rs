@@ -7,10 +7,13 @@ use colored::Colorize;
 use config::{LoadConfigError, LocalStorage};
 use terminal::PopiTerminal;
 
-pub fn run() {
+use crate::{finder::ReposFinder, terminal::VERTICAL_LINE};
+
+#[tokio::main]
+pub async fn run() {
   startup_message();
 
-  let _config = LocalStorage::new().unwrap_or_else(|err| {
+  let config = LocalStorage::new().unwrap_or_else(|err| {
     match err {
       LoadConfigError::NoConfigFileFound { root_path } => {
         let mut config_yaml_path = root_path.clone();
@@ -34,7 +37,38 @@ pub fn run() {
     std::process::exit(1);
   });
 
-  PopiTerminal::yes_or_no("Do you want to continue?".blue().to_string());
+  println!("{}", "Loading Repositories...".bright_black());
+  let mut finder = ReposFinder::new(config.repo_paths);
+  let repos_status = finder.init().await;
+  println!("{}\n", "Finished!".bright_black());
+
+  if !repos_status.paths_not_found.is_empty() {
+    println!(
+      " {} {}",
+      "WARNING".yellow().bold(),
+      "Following paths are not found:".red()
+    );
+    for path in repos_status.paths_not_found {
+      println!(
+        " {} - {}",
+        VERTICAL_LINE.yellow(),
+        path.to_str().unwrap_or("(Unknown Path)")
+      );
+    }
+    println!(" {}", VERTICAL_LINE.yellow());
+
+    let warning_skip = !PopiTerminal::yes_or_no(format!(
+      " {} {}",
+      VERTICAL_LINE.yellow(),
+      "Do you want to continue?".bold()
+    ));
+
+    if warning_skip {
+      println!("");
+    } else {
+      std::process::exit(1);
+    }
+  }
 }
 
 fn startup_message() {

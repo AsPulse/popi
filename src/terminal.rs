@@ -1,13 +1,14 @@
-use std::io::{stdout, stdin, Write};
-
+use std::io::{stdin, stdout, Write};
 
 pub struct PopiTerminal {}
+
+pub const VERTICAL_LINE: &str = "│";
 
 impl PopiTerminal {
   pub fn yes_or_no(question: String) -> bool {
     let mut answer = String::new();
     loop {
-      print!("{} [y/n]:", question);
+      print!("{} [y/n]: ", question);
       stdout().flush().unwrap();
       stdin().read_line(&mut answer).unwrap();
       match answer.trim().to_lowercase().as_str() {
