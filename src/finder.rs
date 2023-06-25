@@ -59,14 +59,15 @@ impl ReposFinder {
   }
 
   pub fn search_by(&self, keyword: &str) -> Vec<FoundRepo> {
+    let converted_keyword = convert_to_lower(keyword.to_string());
     let mut entries = self
       .repos
       .clone()
       .unwrap()
       .into_iter()
       .map(|repo| {
-        let name = repo.name.clone();
-        (repo, PopiFilter::fuzzy_match(keyword, &name))
+        let name = convert_to_lower(repo.name.clone());
+        (repo, PopiFilter::fuzzy_match(&converted_keyword, &name))
       })
       .filter_map(|(repo, match_result)| match match_result {
         MatchedResult::Matched(result) => Some((repo, result)),
@@ -110,4 +111,11 @@ async fn listup_repos(repo_path: PathBuf) -> RepoStatus {
     }
     Err(_) => RepoStatus::NotFound(repo_path.to_path_buf()),
   }
+}
+
+fn convert_to_lower(from: String) -> String {
+  from
+    .to_lowercase()
+    .replace("_", "-")
+    .replace("+", "=")
 }
