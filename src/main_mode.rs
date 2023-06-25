@@ -1,7 +1,11 @@
 use crate::{
   config::LocalStorage,
   finder::{Repo, ReposFinder},
-  strings::{ERROR_PREFIX, EXIT_MESSAGE, EXIT_MESSAGE_LEN, POPI_HEADER}, terminal_util::{TOP_LEFT_CORNER, HORIZONTAL_LINE, TOP_RIGHT_CORNER, BOTTOM_LEFT_CORNER, BOTTOM_RIGHT_CORNER, VERTICAL_LINE},
+  strings::{ERROR_PREFIX, EXIT_MESSAGE, EXIT_MESSAGE_LEN, POPI_HEADER},
+  terminal_util::{
+    BOTTOM_LEFT_CORNER, BOTTOM_RIGHT_CORNER, HORIZONTAL_LINE, TOP_LEFT_CORNER, TOP_RIGHT_CORNER,
+    VERTICAL_LINE,
+  },
 };
 use colored::Colorize;
 use crossterm::execute;
@@ -13,17 +17,19 @@ use crossterm::{
   event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
   queue, style, terminal,
 };
-use std::{io::{stdout, Write, Stdout}, cmp};
+use std::{
+  cmp,
+  io::{stdout, Stdout, Write},
+};
 use thiserror::Error;
 
 static PINK_COLOR: style::Color = style::Color::Rgb {
   r: 255,
   g: 25,
-  b: 94
+  b: 94,
 };
 
 pub fn call_main_mode(storage: LocalStorage, finder: ReposFinder) {
-
   let mut stdout = stdout();
   execute!(
     stdout,
@@ -111,7 +117,6 @@ fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<Option<Repo>,
     )
     .map_err(|_| MainModeError::StdoutWriteError)?;
 
-
     safe_move_to(&mut stdout, width - EXIT_MESSAGE_LEN, 4, width, height)?;
     queue!(
       stdout,
@@ -152,7 +157,6 @@ fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<Option<Repo>,
       style::SetForegroundColor(style::Color::Magenta),
       style::Print(VERTICAL_LINE),
       style::ResetColor,
-
     )
     .map_err(|_| MainModeError::StdoutWriteError)?;
 
@@ -167,15 +171,19 @@ fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<Option<Repo>,
     )
     .map_err(|_| MainModeError::StdoutWriteError)?;
 
-
-    safe_move_to(&mut stdout, cmp::min(5 + keyword.len(), width as usize - 1) as i16, 2, width, height)?;
+    safe_move_to(
+      &mut stdout,
+      cmp::min(5 + keyword.len(), width as usize - 1) as i16,
+      2,
+      width,
+      height,
+    )?;
     queue!(
       stdout,
       cursor::Show,
       cursor::SetCursorStyle::SteadyUnderScore,
     )
     .map_err(|_| MainModeError::StdoutWriteError)?;
-
 
     stdout
       .flush()
@@ -208,13 +216,20 @@ fn safe_repeat(s: &str, n: isize) -> Result<String, MainModeError> {
   Ok(s.repeat(n as usize))
 }
 
-fn safe_move_to(stdout: &mut Stdout, x: i16, y: i16, width: i16, height: i16) -> Result<(), MainModeError> {
+fn safe_move_to(
+  stdout: &mut Stdout,
+  x: i16,
+  y: i16,
+  width: i16,
+  height: i16,
+) -> Result<(), MainModeError> {
   if x >= width || x < 0 {
     return Err(MainModeError::NotEnoughtTerminalWidth);
   }
   if y >= height || y < 0 {
     return Err(MainModeError::NotEnoughtTerminalHeight);
   }
-  queue!(stdout, cursor::MoveTo(x as u16, y as u16)).map_err(|_| MainModeError::StdoutWriteError)?;
+  queue!(stdout, cursor::MoveTo(x as u16, y as u16))
+    .map_err(|_| MainModeError::StdoutWriteError)?;
   Ok(())
 }
