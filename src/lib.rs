@@ -1,17 +1,17 @@
+pub mod strings;
 pub mod config;
 pub mod filter;
 pub mod finder;
 pub mod terminal_util;
-
-use std::{io::{stdout, Stdout}, error::Error};
+pub mod main_mode;
 
 use colored::Colorize;
-use config::{LoadConfigError, LocalStorage};
-use finder::ReposFinder;
-use crossterm::{terminal::{enable_raw_mode, ClearType, disable_raw_mode}, execute};
 
+use crate::config::{LoadConfigError, LocalStorage};
+use crate::finder::ReposFinder;
 use crate::terminal_util::VERTICAL_LINE;
-
+use crate::main_mode::call_main_mode;
+use crate::strings::POPI_HEADER;
 
 #[tokio::main]
 pub async fn run() {
@@ -68,7 +68,7 @@ pub async fn run() {
     ));
 
     if warning_skip {
-      println!("");
+      println!();
     } else {
       std::process::exit(1);
     }
@@ -77,40 +77,7 @@ pub async fn run() {
   call_main_mode(storage, finder);
 }
 
-fn call_main_mode(storage: LocalStorage, finder: ReposFinder) {
-
-  let mut stdout = stdout();
-  execute!(
-    stdout,
-    crossterm::terminal::EnterAlternateScreen,
-    crossterm::cursor::Hide,
-  ).unwrap();
-
-  enable_raw_mode().unwrap();
-  let main_mode_process = main_mode(storage, finder);
-  disable_raw_mode().unwrap();
-
-  execute!(
-    stdout,
-    crossterm::cursor::Show,
-    crossterm::terminal::LeaveAlternateScreen,
-  ).unwrap();
-
-  main_mode_process.unwrap();
-}
-
-fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<(), Box<dyn Error>> {
-  let mut stdout = stdout();
-  execute!(
-    stdout,
-    crossterm::terminal::Clear(ClearType::All),
-    crossterm::cursor::MoveTo(0, 0),
-    crossterm::style::Print("Hello World!"),
-  )?;
-
-  Ok(())
-}
-
 fn startup_message() {
-  println!("\n {}\n", "◇ popi v0.1.0".bold().cyan(),)
+  println!( "\n {}\n", POPI_HEADER.bold().cyan());
 }
+

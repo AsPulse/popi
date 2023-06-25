@@ -1,6 +1,5 @@
 use std::io::{stdin, stdout, Write};
 
-
 pub const VERTICAL_LINE: &str = "│";
 
 pub fn yes_or_no(question: String) -> bool {
