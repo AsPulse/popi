@@ -43,19 +43,20 @@ impl PopiFilter {
         .map(|v| v.0)
         .collect::<Vec<usize>>();
 
-
       for start_point in start {
         for end_point in end {
-          if start_point > end_point { continue; }
-          if start_point == end_point && clipped_keyword.chars().count() > 1 { continue; }
-          canditates.push(
-            Self::get_matched_string(
-              (start_point, end_point),
-              target,
-              clipped_keyword,
-              keyword_filter_penalty
-            )
-          )
+          if start_point > end_point {
+            continue;
+          }
+          if start_point == end_point && clipped_keyword.chars().count() > 1 {
+            continue;
+          }
+          canditates.push(Self::get_matched_string(
+            (start_point, end_point),
+            target,
+            clipped_keyword,
+            keyword_filter_penalty,
+          ))
         }
       }
       keyword_filter = Self::next_start_and_end(keyword_filter);
@@ -68,7 +69,7 @@ impl PopiFilter {
         canditates
           .into_iter()
           .min_by(|a, b| a.distance.cmp(&b.distance))
-          .unwrap()
+          .unwrap(),
       )
     }
   }
@@ -91,7 +92,7 @@ impl PopiFilter {
     }
   }
 
-  pub(super) fn next_start_and_end(current: (usize,usize)) -> (usize, usize) {
+  pub(super) fn next_start_and_end(current: (usize, usize)) -> (usize, usize) {
     let (start, end) = current;
     if start == 0 {
       (end + 1, 0)
