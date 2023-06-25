@@ -203,7 +203,8 @@ fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
       let before = &repo_name[..repo.matched_string.matched_start];
       let matched = &repo_name[repo.matched_string.matched_start
         ..repo.matched_string.matched_start + repo.matched_string.matched_length];
-      let after = &repo_name[repo.matched_string.matched_start + repo.matched_string.matched_length..];
+      let after =
+        &repo_name[repo.matched_string.matched_start + repo.matched_string.matched_length..];
       safe_move_to(&mut stdout, 0, 5 + i as i16, width, height).unwrap();
       queue!(
         stdout,
