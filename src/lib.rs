@@ -1,19 +1,23 @@
 pub mod config;
 pub mod filter;
 pub mod finder;
-pub mod terminal;
+pub mod terminal_util;
+
+use std::{io::{stdout, Stdout}, error::Error};
 
 use colored::Colorize;
 use config::{LoadConfigError, LocalStorage};
-use terminal::PopiTerminal;
+use finder::ReposFinder;
+use crossterm::{terminal::{enable_raw_mode, ClearType, disable_raw_mode}, execute};
 
-use crate::{finder::ReposFinder, terminal::VERTICAL_LINE};
+use crate::terminal_util::VERTICAL_LINE;
+
 
 #[tokio::main]
 pub async fn run() {
   startup_message();
 
-  let config = LocalStorage::new().unwrap_or_else(|err| {
+  let storage = LocalStorage::new().unwrap_or_else(|err| {
     match err {
       LoadConfigError::NoConfigFileFound { root_path } => {
         let mut config_yaml_path = root_path.clone();
@@ -38,7 +42,7 @@ pub async fn run() {
   });
 
   println!("{}", "Loading Repositories...".bright_black());
-  let mut finder = ReposFinder::new(config.repo_paths);
+  let mut finder = ReposFinder::new(storage.repo_paths.to_vec());
   let repos_status = finder.init().await;
   println!("{}\n", "Finished!".bright_black());
 
@@ -57,7 +61,7 @@ pub async fn run() {
     }
     println!(" {}", VERTICAL_LINE.yellow());
 
-    let warning_skip = !PopiTerminal::yes_or_no(format!(
+    let warning_skip = !terminal_util::yes_or_no(format!(
       " {} {}",
       VERTICAL_LINE.yellow(),
       "Do you want to continue?".bold()
@@ -69,6 +73,42 @@ pub async fn run() {
       std::process::exit(1);
     }
   }
+
+  call_main_mode(storage, finder);
+}
+
+fn call_main_mode(storage: LocalStorage, finder: ReposFinder) {
+
+  let mut stdout = stdout();
+  execute!(
+    stdout,
+    crossterm::terminal::EnterAlternateScreen,
+    crossterm::cursor::Hide,
+  ).unwrap();
+
+  enable_raw_mode().unwrap();
+  let main_mode_process = main_mode(storage, finder);
+  disable_raw_mode().unwrap();
+
+  execute!(
+    stdout,
+    crossterm::cursor::Show,
+    crossterm::terminal::LeaveAlternateScreen,
+  ).unwrap();
+
+  main_mode_process.unwrap();
+}
+
+fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<(), Box<dyn Error>> {
+  let mut stdout = stdout();
+  execute!(
+    stdout,
+    crossterm::terminal::Clear(ClearType::All),
+    crossterm::cursor::MoveTo(0, 0),
+    crossterm::style::Print("Hello World!"),
+  )?;
+
+  Ok(())
 }
 
 fn startup_message() {
