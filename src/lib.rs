@@ -1,9 +1,11 @@
 pub mod config;
 pub mod filter;
 pub mod finder;
+pub mod terminal;
 
 use colored::Colorize;
 use config::{LoadConfigError, LocalStorage};
+use terminal::PopiTerminal;
 
 pub fn run() {
   startup_message();
@@ -31,6 +33,8 @@ pub fn run() {
     }
     std::process::exit(1);
   });
+
+  PopiTerminal::yes_or_no("Do you want to continue?".blue().to_string());
 }
 
 fn startup_message() {
