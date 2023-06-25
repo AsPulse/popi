@@ -193,6 +193,46 @@ mod test_fuzzy_match {
         distance: 1,
       })
     );
+    assert_eq!(
+      PopiFilter::fuzzy_match("aspulse", "aspulse-k8s-manifests"),
+      MatchedResult::Matched(MatchedString {
+        matched_start: 0,
+        matched_length: 7,
+        distance: 0,
+      })
+    );
+    assert_eq!(
+      PopiFilter::fuzzy_match("zen", "zenn"),
+      MatchedResult::Matched(MatchedString {
+        matched_start: 0,
+        matched_length: 3,
+        distance: 0,
+      })
+    );
+    assert_eq!(
+      PopiFilter::fuzzy_match("sugar", "sugarform"),
+      MatchedResult::Matched(MatchedString {
+        matched_start: 0,
+        matched_length: 5,
+        distance: 0,
+      })
+    );
+    assert_eq!(
+      PopiFilter::fuzzy_match("deno", "discordeno-"),
+      MatchedResult::Matched(MatchedString {
+        matched_start: 6,
+        matched_length: 4,
+        distance: 0,
+      })
+    );
+    assert_eq!(
+      PopiFilter::fuzzy_match("o", "abcoxxxoabc"),
+      MatchedResult::Matched(MatchedString {
+        matched_start: 4,
+        matched_length: 1,
+        distance: 0,
+      })
+    );
   }
 
   #[test]
