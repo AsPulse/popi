@@ -9,4 +9,4 @@ pub const EXIT_MESSAGE: &str = "ESC or Ctrl+C: exit";
 pub const EXIT_MESSAGE_LEN: i16 = EXIT_MESSAGE.len() as i16;
 
 pub const CLEAR_MESSAGE: &str = "ESC: clear, Ctrl+C: exit";
-pub const CLEAR_MESSAGE_LEN: i16 = EXIT_MESSAGE.len() as i16;
+pub const CLEAR_MESSAGE_LEN: i16 = CLEAR_MESSAGE.len() as i16;
