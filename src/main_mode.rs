@@ -1,5 +1,6 @@
 use crate::{
   config::LocalStorage,
+  filter::MatchedString,
   finder::{Repo, ReposFinder},
   strings::{
     CLEAR_MESSAGE, CLEAR_MESSAGE_LEN, ERROR_PREFIX, EXIT_MESSAGE, EXIT_MESSAGE_LEN, POPI_HEADER,
@@ -199,6 +200,8 @@ fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
     let repos = finder.search_by(&keyword);
     let rendering_repos = &repos[..cmp::min(repo_views as usize, repos.len())];
     rendering_repos.iter().enumerate().for_each(|(i, repo)| {
+      let repo_name = &repo.repo.name;
+      let (before, matched, after) = split_by_matched(repo_name, &repo.matched_string);
       safe_move_to(&mut stdout, 0, 5 + i as i16, width, height).unwrap();
       queue!(
         stdout,
@@ -206,7 +209,11 @@ fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
         style::Print(" • "),
         style::ResetColor,
         style::SetForegroundColor(style::Color::White),
-        style::Print(&repo.repo.name),
+        style::Print(before),
+        style::SetAttribute(style::Attribute::Bold),
+        style::Print(matched),
+        style::SetAttribute(style::Attribute::Reset),
+        style::Print(after),
         style::ResetColor,
       )
       .unwrap();
@@ -267,6 +274,14 @@ fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
   }
 }
 
+fn split_by_matched<'a>(s: &'a str, meta: &MatchedString) -> (&'a str, &'a str, &'a str) {
+  (
+    &s[..meta.matched_start],
+    &s[meta.matched_start..meta.matched_start + meta.matched_length],
+    &s[meta.matched_start + meta.matched_length..],
+  )
+}
+
 fn safe_repeat(s: &str, n: isize) -> Result<String, MainModeError> {
   if n < 0 {
     return Err(MainModeError::NotEnoughtTerminalWidth);
@@ -293,4 +308,79 @@ fn safe_move_to(
   queue!(stdout, cursor::MoveTo(x as u16, y as u16))
     .map_err(|_| MainModeError::StdoutWriteError)?;
   Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_split_by_matched() {
+    assert_eq!(
+      split_by_matched(
+        "hello",
+        &MatchedString {
+          matched_start: 0,
+          matched_length: 1,
+          distance: 0,
+        }
+      ),
+      ("", "h", "ello")
+    );
+    assert_eq!(
+      split_by_matched(
+        "hello",
+        &MatchedString {
+          matched_start: 1,
+          matched_length: 1,
+          distance: 0,
+        }
+      ),
+      ("h", "e", "llo")
+    );
+    assert_eq!(
+      split_by_matched(
+        "hello",
+        &MatchedString {
+          matched_start: 1,
+          matched_length: 2,
+          distance: 0,
+        }
+      ),
+      ("h", "el", "lo")
+    );
+    assert_eq!(
+      split_by_matched(
+        "hello",
+        &MatchedString {
+          matched_start: 1,
+          matched_length: 3,
+          distance: 0,
+        }
+      ),
+      ("h", "ell", "o")
+    );
+    assert_eq!(
+      split_by_matched(
+        "hello",
+        &MatchedString {
+          matched_start: 1,
+          matched_length: 4,
+          distance: 0,
+        }
+      ),
+      ("h", "ello", "")
+    );
+    assert_eq!(
+      split_by_matched(
+        "hello",
+        &MatchedString {
+          matched_start: 0,
+          matched_length: 5,
+          distance: 0,
+        }
+      ),
+      ("", "hello", "")
+    );
+  }
 }
