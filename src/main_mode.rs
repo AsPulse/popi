@@ -1,6 +1,9 @@
-use std::{io::{stdout, Write}, error::Error};
-use crossterm::terminal::{enable_raw_mode, disable_raw_mode};
 use crate::{config::LocalStorage, finder::ReposFinder, strings::POPI_HEADER};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use std::{
+  error::Error,
+  io::{stdout, Write},
+};
 
 pub fn call_main_mode(storage: LocalStorage, finder: ReposFinder) {
   use crossterm::execute;
@@ -30,20 +33,14 @@ pub fn call_main_mode(storage: LocalStorage, finder: ReposFinder) {
 
 fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<(), Box<dyn Error>> {
   use crossterm::{
-    queue,
-    terminal, cursor, style,
-    event::{
-      self, Event,
-      KeyCode,
-      KeyModifiers,
-      KeyEvent,
-    },
+    cursor,
+    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+    queue, style, terminal,
   };
 
   let mut stdout = stdout();
 
   loop {
-
     let (width, height) = terminal::size()?;
     queue!(
       stdout,
@@ -51,15 +48,21 @@ fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<(), Box<dyn E
       cursor::MoveTo(0, 0),
     )?;
 
-
     queue!(
       stdout,
       cursor::MoveTo(0, 0),
-      style::SetBackgroundColor(style::Color::Rgb { r: 255, g: 25, b: 94 }),
+      style::SetBackgroundColor(style::Color::Rgb {
+        r: 255,
+        g: 25,
+        b: 94
+      }),
       style::SetForegroundColor(style::Color::White),
-      style::Print(
-        format!("{}{}{}", " ", POPI_HEADER, " ".repeat(width as usize - POPI_HEADER.len() + 1)),
-      ),
+      style::Print(format!(
+        "{}{}{}",
+        " ",
+        POPI_HEADER,
+        " ".repeat(width as usize - POPI_HEADER.len() + 1)
+      ),),
       style::ResetColor,
     )?;
 

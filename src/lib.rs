@@ -1,17 +1,17 @@
-pub mod strings;
 pub mod config;
 pub mod filter;
 pub mod finder;
-pub mod terminal_util;
 pub mod main_mode;
+pub mod strings;
+pub mod terminal_util;
 
 use colored::Colorize;
 
 use crate::config::{LoadConfigError, LocalStorage};
 use crate::finder::ReposFinder;
-use crate::terminal_util::VERTICAL_LINE;
 use crate::main_mode::call_main_mode;
 use crate::strings::POPI_HEADER;
+use crate::terminal_util::VERTICAL_LINE;
 
 #[tokio::main]
 pub async fn run() {
@@ -78,6 +78,5 @@ pub async fn run() {
 }
 
 fn startup_message() {
-  println!( "\n {}\n", POPI_HEADER.bold().cyan());
+  println!("\n {}\n", POPI_HEADER.bold().cyan());
 }
-
