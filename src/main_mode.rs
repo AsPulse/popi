@@ -29,7 +29,7 @@ static PINK_COLOR: style::Color = style::Color::Rgb {
   b: 94,
 };
 
-pub fn call_main_mode(storage: LocalStorage, finder: ReposFinder) {
+pub fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
   let mut stdout = stdout();
   execute!(
     stdout,
@@ -39,7 +39,7 @@ pub fn call_main_mode(storage: LocalStorage, finder: ReposFinder) {
   .unwrap();
 
   enable_raw_mode().unwrap();
-  let main_mode_process = main_mode(storage, finder);
+  let main_mode_process = main_mode(finder);
   disable_raw_mode().unwrap();
 
   execute!(
@@ -83,7 +83,7 @@ pub enum MainModeError {
   StdoutWriteError,
 }
 
-fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
+fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
   let mut stdout = stdout();
   let mut keyword = String::new();
 
@@ -170,6 +170,24 @@ fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<Option<Repo>,
     )
     .map_err(|_| MainModeError::StdoutWriteError)?;
 
+    let repo_views = height - 5;
+    let repos = finder.search_by(&keyword);
+    let rendering_repos = &repos[..cmp::min(repo_views as usize, repos.len())];
+    rendering_repos.iter().enumerate().for_each(|(i, repo)| {
+      safe_move_to(&mut stdout, 0, 5 + i as i16, width, height).unwrap();
+      queue!(
+        stdout,
+        style::SetForegroundColor(style::Color::Magenta),
+        style::Print(" • "),
+        style::ResetColor,
+        style::SetForegroundColor(style::Color::White),
+        style::Print(&repo.repo.name),
+        style::ResetColor,
+      )
+      .unwrap();
+    });
+
+
     safe_move_to(
       &mut stdout,
       cmp::min(5 + keyword.len(), width as usize - 1) as i16,
@@ -177,6 +195,7 @@ fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<Option<Repo>,
       width,
       height,
     )?;
+
     queue!(
       stdout,
       cursor::Show,
