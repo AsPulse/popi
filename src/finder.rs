@@ -116,8 +116,8 @@ async fn listup_repos(repo_path: PathBuf) -> RepoStatus {
 fn convert_to_lower(from: String) -> String {
   from
     .to_lowercase()
-    .replace("_", "-")
-    .replace("+", "=")
+    .replace('_', "-")
+    .replace('+', "=")
 }
 
 #[cfg(test)]
