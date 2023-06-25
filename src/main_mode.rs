@@ -199,6 +199,11 @@ fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
     let repos = finder.search_by(&keyword);
     let rendering_repos = &repos[..cmp::min(repo_views as usize, repos.len())];
     rendering_repos.iter().enumerate().for_each(|(i, repo)| {
+      let repo_name = &repo.repo.name;
+      let before = &repo_name[..repo.matched_string.matched_start];
+      let matched = &repo_name[repo.matched_string.matched_start
+        ..repo.matched_string.matched_start + repo.matched_string.matched_length];
+      let after = &repo_name[repo.matched_string.matched_start + repo.matched_string.matched_length..];
       safe_move_to(&mut stdout, 0, 5 + i as i16, width, height).unwrap();
       queue!(
         stdout,
@@ -206,7 +211,11 @@ fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
         style::Print(" • "),
         style::ResetColor,
         style::SetForegroundColor(style::Color::White),
-        style::Print(&repo.repo.name),
+        style::Print(before),
+        style::SetAttribute(style::Attribute::Bold),
+        style::Print(matched),
+        style::SetAttribute(style::Attribute::Reset),
+        style::Print(after),
         style::ResetColor,
       )
       .unwrap();
