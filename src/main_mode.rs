@@ -1,7 +1,9 @@
 use crate::{
   config::LocalStorage,
   finder::{Repo, ReposFinder},
-  strings::{ERROR_PREFIX, EXIT_MESSAGE, EXIT_MESSAGE_LEN, POPI_HEADER},
+  strings::{
+    CLEAR_MESSAGE, CLEAR_MESSAGE_LEN, ERROR_PREFIX, EXIT_MESSAGE, EXIT_MESSAGE_LEN, POPI_HEADER,
+  },
   terminal_util::{
     BOTTOM_LEFT_CORNER, BOTTOM_RIGHT_CORNER, HORIZONTAL_LINE, TOP_LEFT_CORNER, TOP_RIGHT_CORNER,
     VERTICAL_LINE,
@@ -83,6 +85,11 @@ pub enum MainModeError {
   StdoutWriteError,
 }
 
+enum EscapeBehavior {
+  Clear,
+  Exit,
+}
+
 fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
   let mut stdout = stdout();
   let mut keyword = String::new();
@@ -90,6 +97,11 @@ fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
   loop {
     let (width, height) = terminal::size().map_err(|_| MainModeError::TerminalSizeUnavailable)?;
     let (width, height) = (width as i16, height as i16);
+    let escape_behavior = if keyword.is_empty() {
+      EscapeBehavior::Exit
+    } else {
+      EscapeBehavior::Clear
+    };
 
     queue!(
       stdout,
@@ -116,11 +128,24 @@ fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
     )
     .map_err(|_| MainModeError::StdoutWriteError)?;
 
-    safe_move_to(&mut stdout, width - EXIT_MESSAGE_LEN, 4, width, height)?;
+    safe_move_to(
+      &mut stdout,
+      width
+        - match escape_behavior {
+          EscapeBehavior::Clear => CLEAR_MESSAGE_LEN,
+          EscapeBehavior::Exit => EXIT_MESSAGE_LEN,
+        },
+      4,
+      width,
+      height,
+    )?;
     queue!(
       stdout,
       style::SetForegroundColor(style::Color::DarkGrey),
-      style::Print(EXIT_MESSAGE),
+      style::Print(match escape_behavior {
+        EscapeBehavior::Clear => CLEAR_MESSAGE,
+        EscapeBehavior::Exit => EXIT_MESSAGE,
+      }),
       style::ResetColor,
     )
     .map_err(|_| MainModeError::StdoutWriteError)?;
@@ -207,16 +232,23 @@ fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
       .map_err(|_| MainModeError::StdoutWriteError)?;
     if let Event::Key(key_event) = event::read().map_err(|_| MainModeError::EventReadError)? {
       match key_event {
-        KeyEvent {
-          code: KeyCode::Esc, ..
-        }
-        | event::KeyEvent {
+        event::KeyEvent {
           code: KeyCode::Char('c'),
           modifiers: KeyModifiers::CONTROL,
           ..
         } => {
           break Ok(None);
         }
+        event::KeyEvent {
+          code: KeyCode::Esc, ..
+        } => match escape_behavior {
+          EscapeBehavior::Clear => {
+            keyword.clear();
+          }
+          EscapeBehavior::Exit => {
+            break Ok(None);
+          }
+        },
         KeyEvent {
           code: KeyCode::Backspace,
           ..
