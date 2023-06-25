@@ -10,7 +10,7 @@ use colored::Colorize;
 use crate::config::{LoadConfigError, LocalStorage};
 use crate::finder::ReposFinder;
 use crate::main_mode::call_main_mode;
-use crate::strings::{POPI_HEADER, ERROR_PREFIX, WARNING_PREFIX};
+use crate::strings::{ERROR_PREFIX, POPI_HEADER, WARNING_PREFIX};
 use crate::terminal_util::VERTICAL_LINE;
 
 #[tokio::main]
