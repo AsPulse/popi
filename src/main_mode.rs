@@ -172,6 +172,7 @@ fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<Option<Repo>,
     queue!(
       stdout,
       cursor::Show,
+      cursor::SetCursorStyle::SteadyUnderScore,
     )
     .map_err(|_| MainModeError::StdoutWriteError)?;
 
