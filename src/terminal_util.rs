@@ -1,6 +1,11 @@
 use std::io::{stdin, stdout, Write};
 
 pub const VERTICAL_LINE: &str = "│";
+pub const HORIZONTAL_LINE: &str = "─";
+pub const TOP_LEFT_CORNER: &str = "╭";
+pub const TOP_RIGHT_CORNER: &str = "╮";
+pub const BOTTOM_LEFT_CORNER: &str = "╰";
+pub const BOTTOM_RIGHT_CORNER: &str = "╯";
 
 pub fn yes_or_no(question: String) -> bool {
   let mut answer = String::new();
