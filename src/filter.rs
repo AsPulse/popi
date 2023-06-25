@@ -16,11 +16,13 @@ pub enum MatchedResult {
 impl PopiFilter {
   pub fn fuzzy_match(keyword: &str, target: &str) -> MatchedResult {
     let keyword_len = keyword.chars().count();
+    let mut canditates: Vec<MatchedString> = vec![];
 
     let mut keyword_filter: (usize, usize) = (0, 0);
     loop {
-      if keyword_filter.0 + keyword_filter.1 >= keyword_len {
-        return MatchedResult::NotMatched();
+      let keyword_filter_penalty = keyword_filter.0 + keyword_filter.1;
+      if keyword_filter_penalty >= keyword_len {
+        break;
       }
       let clipped_keyword = &keyword[keyword.char_indices().nth(keyword_filter.0).unwrap().0
         ..keyword
@@ -28,35 +30,57 @@ impl PopiFilter {
           .nth(keyword_len - keyword_filter.1)
           .map_or(keyword_len, |v| v.0)];
 
-      let start = target
+      let keyword_starts_with = clipped_keyword.chars().next().unwrap();
+      let keyword_ends_with = clipped_keyword.chars().last().unwrap();
+      let start = &target
         .char_indices()
-        .find(|c| c.1 == clipped_keyword.chars().next().unwrap())
-        .map(|v| v.0);
-      let end = target
+        .filter(|c| c.1 == keyword_starts_with)
+        .map(|v| v.0)
+        .collect::<Vec<usize>>();
+      let end = &target
         .char_indices()
-        .rev()
-        .find(|c| c.1 == clipped_keyword.chars().last().unwrap())
-        .map(|v| v.0);
-      if let (Some(start), Some(end)) = (start, end) {
-        if start <= end {
-          return MatchedResult::Matched(Self::get_matched_string(
-            (start, end),
-            target,
-            clipped_keyword,
-            keyword_filter.0 + keyword_filter.1,
-          ));
+        .filter(|c| c.1 == keyword_ends_with)
+        .map(|v| v.0)
+        .collect::<Vec<usize>>();
+
+
+      for start_point in start {
+        for end_point in end {
+          if start_point > end_point { continue; }
+          if start_point == end_point && clipped_keyword.chars().count() > 1 { continue; }
+          canditates.push(
+            Self::get_matched_string(
+              (start_point, end_point),
+              target,
+              clipped_keyword,
+              keyword_filter_penalty
+            )
+          )
         }
       }
       keyword_filter = Self::next_start_and_end(keyword_filter);
     }
+
+    if canditates.is_empty() {
+      MatchedResult::NotMatched()
+    } else {
+      MatchedResult::Matched(
+        canditates
+          .into_iter()
+          .min_by(|a, b| a.distance.cmp(&b.distance))
+          .unwrap()
+      )
+    }
   }
 
   pub(super) fn get_matched_string(
-    (start, end): (usize, usize),
+    (start, end): (&usize, &usize),
     target: &str,
     clipped_keyword: &str,
     keyword_filter_penalty: usize,
   ) -> MatchedString {
+    let start = *start;
+    let end = *end;
     let clipped_target = &target[start..end + 1];
     MatchedString {
       matched_start: start,
@@ -67,7 +91,7 @@ impl PopiFilter {
     }
   }
 
-  pub(super) fn next_start_and_end(current: (usize, usize)) -> (usize, usize) {
+  pub(super) fn next_start_and_end(current: (usize,usize)) -> (usize, usize) {
     let (start, end) = current;
     if start == 0 {
       (end + 1, 0)
@@ -241,7 +265,7 @@ mod test_fuzzy_match {
     assert_eq!(
       PopiFilter::fuzzy_match("o", "abcoxxxoabc"),
       MatchedResult::Matched(MatchedString {
-        matched_start: 4,
+        matched_start: 3,
         matched_length: 1,
         distance: 0,
       })
