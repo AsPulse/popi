@@ -119,3 +119,16 @@ fn convert_to_lower(from: String) -> String {
     .replace("_", "-")
     .replace("+", "=")
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_convert_to_lower() {
+    assert_eq!(convert_to_lower("aBc".to_string()), "abc");
+    assert_eq!(convert_to_lower("aBc_".to_string()), "abc-");
+    assert_eq!(convert_to_lower("aBc+".to_string()), "abc=");
+  }
+}
+
