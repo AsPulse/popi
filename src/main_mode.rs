@@ -1,9 +1,7 @@
+use std::io::{stdout, Write};
+use crossterm::terminal::{enable_raw_mode, disable_raw_mode};
+use thiserror::Error;
 use crate::{config::LocalStorage, finder::ReposFinder, strings::POPI_HEADER};
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
-use std::{
-  error::Error,
-  io::{stdout, Write},
-};
 
 pub fn call_main_mode(storage: LocalStorage, finder: ReposFinder) {
   use crossterm::execute;
@@ -31,43 +29,53 @@ pub fn call_main_mode(storage: LocalStorage, finder: ReposFinder) {
   main_mode_process.unwrap();
 }
 
-fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<(), Box<dyn Error>> {
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum MainModeError {
+  #[error("The terminal width is too narrow.")]
+  NotEnoughtTerminalWidth,
+  #[error("Failed to get terminal size.")]
+  TerminalSizeUnavailable,
+  #[error("Failed to read event.")]
+  EventReadError,
+  #[error("Failed to write to stdout.")]
+  StdoutWriteError,
+}
+fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<(), MainModeError> {
   use crossterm::{
-    cursor,
-    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
-    queue, style, terminal,
+    queue,
+    terminal, cursor, style,
+    event::{
+      self, Event,
+      KeyCode,
+      KeyModifiers,
+      KeyEvent,
+    },
   };
 
   let mut stdout = stdout();
 
   loop {
-    let (width, height) = terminal::size()?;
+
+    let (width, height) = terminal::size().map_err(|_| MainModeError::TerminalSizeUnavailable)?;
     queue!(
       stdout,
       terminal::Clear(terminal::ClearType::All),
       cursor::MoveTo(0, 0),
-    )?;
+    ).map_err(|_| MainModeError::StdoutWriteError)?;
 
+
+    let header_text = format!("{}{}{}", " ", POPI_HEADER, safe_repeat(" ", width as isize - POPI_HEADER.len() as isize + 1)?);
     queue!(
       stdout,
       cursor::MoveTo(0, 0),
-      style::SetBackgroundColor(style::Color::Rgb {
-        r: 255,
-        g: 25,
-        b: 94
-      }),
+      style::SetBackgroundColor(style::Color::Rgb { r: 255, g: 25, b: 94 }),
       style::SetForegroundColor(style::Color::White),
-      style::Print(format!(
-        "{}{}{}",
-        " ",
-        POPI_HEADER,
-        " ".repeat(width as usize - POPI_HEADER.len() + 1)
-      ),),
+      style::Print(header_text),
       style::ResetColor,
-    )?;
+    ).map_err(|_| MainModeError::StdoutWriteError)?;
 
-    stdout.flush()?;
-    if let Event::Key(key_event) = event::read()? {
+    stdout.flush().map_err(|_| MainModeError::StdoutWriteError)?;
+    if let Event::Key(key_event) = event::read().map_err(|_| MainModeError::EventReadError)? {
       match key_event {
         KeyEvent {
           code: KeyCode::Esc, ..
@@ -85,4 +93,13 @@ fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<(), Box<dyn E
   }
 
   Ok(())
+}
+fn safe_repeat(s: &str, n: isize) -> Result<String, MainModeError> {
+  if n < 0 {
+    return Err(MainModeError::NotEnoughtTerminalWidth);
+  }
+  if n == 0 {
+    return Ok(String::new());
+  }
+  Ok(s.repeat(n as usize))
 }
