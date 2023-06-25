@@ -240,18 +240,15 @@ fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
           break Ok(None);
         }
         event::KeyEvent {
-          code: KeyCode::Esc,
-          ..
-        } => {
-          match escape_behavior {
-            EscapeBehavior::Clear => {
-              keyword.clear();
-            }
-            EscapeBehavior::Exit => {
-              break Ok(None);
-            }
+          code: KeyCode::Esc, ..
+        } => match escape_behavior {
+          EscapeBehavior::Clear => {
+            keyword.clear();
           }
-        }
+          EscapeBehavior::Exit => {
+            break Ok(None);
+          }
+        },
         KeyEvent {
           code: KeyCode::Backspace,
           ..
