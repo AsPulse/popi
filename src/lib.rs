@@ -10,7 +10,7 @@ use colored::Colorize;
 use crate::config::{LoadConfigError, LocalStorage};
 use crate::finder::ReposFinder;
 use crate::main_mode::call_main_mode;
-use crate::strings::POPI_HEADER;
+use crate::strings::{POPI_HEADER, ERROR_PREFIX, WARNING_PREFIX};
 use crate::terminal_util::VERTICAL_LINE;
 
 #[tokio::main]
@@ -24,7 +24,7 @@ pub async fn run() {
         config_yaml_path.push("config.yml");
         eprintln!(
           " {} {}\n\n Run following commands to edit:\n {}\n {}",
-          " ✖ERROR ".on_red().white().bold(),
+          ERROR_PREFIX.on_red().white().bold(),
           "config.yml not found in your config directory.".red(),
           format!("$ mkdir -p \"{}\"", root_path.to_str().unwrap()).bold(),
           format!("$ vim \"{}\"", config_yaml_path.to_str().unwrap()).bold(),
@@ -41,16 +41,15 @@ pub async fn run() {
     std::process::exit(1);
   });
 
-  println!("{}", "Loading Repositories...".bright_black());
+  println!(" {}", "Loading Repositories...".bright_black());
   let mut finder = ReposFinder::new(storage.repo_paths.to_vec());
   let repos_status = finder.init().await;
-  println!("{}\n", "Finished!".bright_black());
+  println!(" {}\n", "Finished!".bright_black());
 
   if !repos_status.paths_not_found.is_empty() {
     println!(
-      " {} {}",
-      "WARNING".yellow().bold(),
-      "Following paths are not found:".red()
+      " {} Following paths are not found:",
+      WARNING_PREFIX.on_yellow().black().bold(),
     );
     for path in repos_status.paths_not_found {
       println!(
@@ -68,9 +67,9 @@ pub async fn run() {
     ));
 
     if warning_skip {
-      println!();
+      std::process::exit(130);
     } else {
-      std::process::exit(1);
+      println!();
     }
   }
 

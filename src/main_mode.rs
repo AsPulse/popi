@@ -1,7 +1,8 @@
 use std::io::{stdout, Write};
 use crossterm::terminal::{enable_raw_mode, disable_raw_mode};
 use thiserror::Error;
-use crate::{config::LocalStorage, finder::ReposFinder, strings::POPI_HEADER};
+use colored::Colorize;
+use crate::{config::LocalStorage, finder::{ReposFinder, Repo}, strings::{POPI_HEADER, ERROR_PREFIX}};
 
 pub fn call_main_mode(storage: LocalStorage, finder: ReposFinder) {
   use crossterm::execute;
@@ -26,7 +27,30 @@ pub fn call_main_mode(storage: LocalStorage, finder: ReposFinder) {
   .unwrap();
 
   disable_raw_mode().unwrap();
-  main_mode_process.unwrap();
+
+  match main_mode_process {
+    Ok(Some(_repo)) => todo!("repo"),
+    Ok(None) => {
+      println!("{}", "Aborting...".bright_black());
+      std::process::exit(130);
+    }
+    Err(e) => {
+      eprintln!(
+        " {} {}",
+        ERROR_PREFIX.on_red().white().bold(),
+        "An error occurred while running popi.".red().bold(),
+      );
+      eprintln!(
+        " {}{}",
+        format!(
+          "{:?}: ",
+          e
+        ).bold(),
+        e,
+      );
+      std::process::exit(1);
+    }
+  }
 }
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -40,7 +64,7 @@ pub enum MainModeError {
   #[error("Failed to write to stdout.")]
   StdoutWriteError,
 }
-fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<(), MainModeError> {
+fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
   use crossterm::{
     queue,
     terminal, cursor, style,
@@ -70,6 +94,7 @@ fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<(), MainModeE
       cursor::MoveTo(0, 0),
       style::SetBackgroundColor(style::Color::Rgb { r: 255, g: 25, b: 94 }),
       style::SetForegroundColor(style::Color::White),
+      style::SetAttribute(style::Attribute::Bold),
       style::Print(header_text),
       style::ResetColor,
     ).map_err(|_| MainModeError::StdoutWriteError)?;
@@ -85,14 +110,12 @@ fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<(), MainModeE
           modifiers: KeyModifiers::CONTROL,
           ..
         } => {
-          break;
+          break Ok(None);
         }
         _ => {}
       }
     }
   }
-
-  Ok(())
 }
 fn safe_repeat(s: &str, n: isize) -> Result<String, MainModeError> {
   if n < 0 {
