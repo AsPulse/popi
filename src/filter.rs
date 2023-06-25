@@ -16,11 +16,14 @@ pub enum MatchedResult {
 impl PopiFilter {
   pub fn fuzzy_match(keyword: &str, target: &str) -> MatchedResult {
     let keyword_len = keyword.chars().count();
+    let mut inspected_pairs: Vec<(usize, usize)> = vec![];
+    let mut canditates: Vec<MatchedString> = vec![];
 
     let mut keyword_filter: (usize, usize) = (0, 0);
     loop {
-      if keyword_filter.0 + keyword_filter.1 >= keyword_len {
-        return MatchedResult::NotMatched();
+      let keyword_filter_penalty = keyword_filter.0 + keyword_filter.1;
+      if keyword_filter_penalty >= keyword_len {
+        break;
       }
       let clipped_keyword = &keyword[keyword.char_indices().nth(keyword_filter.0).unwrap().0
         ..keyword
@@ -28,29 +31,70 @@ impl PopiFilter {
           .nth(keyword_len - keyword_filter.1)
           .map_or(keyword_len, |v| v.0)];
 
-      let start = target
+      let keyword_starts_with = clipped_keyword.chars().next().unwrap();
+      let keyword_ends_with = clipped_keyword.chars().last().unwrap();
+      let start = &target
         .char_indices()
-        .find(|c| c.1 == clipped_keyword.chars().next().unwrap())
-        .map(|v| v.0);
-      let end = target
+        .filter(|c| c.1 == keyword_starts_with)
+        .map(|v| v.0)
+        .collect::<Vec<usize>>();
+      let end = &target
         .char_indices()
-        .rev()
-        .find(|c| c.1 == clipped_keyword.chars().last().unwrap())
-        .map(|v| v.0);
-      if let (Some(start), Some(end)) = (start, end) {
-        if start <= end {
-          let clipped_target = &target[start..end + 1];
-          return MatchedResult::Matched(MatchedString {
-            matched_start: start,
-            matched_length: end - start + 1,
-            distance: usize::try_from(stringmetrics::levenshtein(clipped_target, clipped_keyword))
-              .unwrap()
-              + keyword_filter.0
-              + keyword_filter.1,
-          });
+        .filter(|c| c.1 == keyword_ends_with)
+        .map(|v| v.0)
+        .collect::<Vec<usize>>();
+
+      for start_point in start {
+        for end_point in end {
+          if inspected_pairs.contains(&(*start_point, *end_point)) {
+            continue;
+          }
+          if start_point > end_point {
+            continue;
+          }
+          if start_point == end_point && clipped_keyword.chars().count() > 1 {
+            continue;
+          }
+
+          canditates.push(Self::get_matched_string(
+            (start_point, end_point),
+            target,
+            clipped_keyword,
+            keyword_filter_penalty,
+          ));
+          inspected_pairs.push((*start_point, *end_point));
         }
       }
-      keyword_filter = PopiFilter::next_start_and_end(keyword_filter);
+      keyword_filter = Self::next_start_and_end(keyword_filter);
+    }
+
+    if canditates.is_empty() {
+      MatchedResult::NotMatched()
+    } else {
+      MatchedResult::Matched(
+        canditates
+          .into_iter()
+          .min_by(|a, b| a.distance.cmp(&b.distance))
+          .unwrap(),
+      )
+    }
+  }
+
+  pub(super) fn get_matched_string(
+    (start, end): (&usize, &usize),
+    target: &str,
+    clipped_keyword: &str,
+    keyword_filter_penalty: usize,
+  ) -> MatchedString {
+    let start = *start;
+    let end = *end;
+    let clipped_target = &target[start..end + 1];
+    MatchedString {
+      matched_start: start,
+      matched_length: end - start + 1,
+      distance: usize::try_from(stringmetrics::levenshtein(clipped_target, clipped_keyword))
+        .unwrap()
+        + keyword_filter_penalty,
     }
   }
 
@@ -191,6 +235,46 @@ mod test_fuzzy_match {
         matched_start: 1,
         matched_length: 7,
         distance: 1,
+      })
+    );
+    assert_eq!(
+      PopiFilter::fuzzy_match("aspulse", "aspulse-k8s-manifests"),
+      MatchedResult::Matched(MatchedString {
+        matched_start: 0,
+        matched_length: 7,
+        distance: 0,
+      })
+    );
+    assert_eq!(
+      PopiFilter::fuzzy_match("zen", "zenn"),
+      MatchedResult::Matched(MatchedString {
+        matched_start: 0,
+        matched_length: 3,
+        distance: 0,
+      })
+    );
+    assert_eq!(
+      PopiFilter::fuzzy_match("sugar", "sugarform"),
+      MatchedResult::Matched(MatchedString {
+        matched_start: 0,
+        matched_length: 5,
+        distance: 0,
+      })
+    );
+    assert_eq!(
+      PopiFilter::fuzzy_match("deno", "discordeno-"),
+      MatchedResult::Matched(MatchedString {
+        matched_start: 6,
+        matched_length: 4,
+        distance: 0,
+      })
+    );
+    assert_eq!(
+      PopiFilter::fuzzy_match("o", "abcoxxxoabc"),
+      MatchedResult::Matched(MatchedString {
+        matched_start: 3,
+        matched_length: 1,
+        distance: 0,
       })
     );
   }
