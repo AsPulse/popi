@@ -86,7 +86,6 @@ pub enum MainModeError {
 fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
   let mut stdout = stdout();
   let mut keyword = String::new();
-  keyword = "test".to_string();
 
   loop {
     let (width, height) = terminal::size().map_err(|_| MainModeError::TerminalSizeUnavailable)?;
@@ -145,7 +144,7 @@ fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<Option<Repo>,
       style::Print(VERTICAL_LINE),
       style::ResetColor,
       style::Print(" 🔎 "),
-      style::SetAttribute(style::Attribute::Bold),
+      // style::SetAttribute(style::Attribute::Bold),
       style::Print(&keyword),
       style::ResetColor,
     )
@@ -199,6 +198,18 @@ fn main_mode(storage: LocalStorage, finder: ReposFinder) -> Result<Option<Repo>,
           ..
         } => {
           break Ok(None);
+        }
+        KeyEvent {
+          code: KeyCode::Backspace,
+          ..
+        } => {
+          keyword.pop();
+        }
+        KeyEvent {
+          code: KeyCode::Char(c),
+          ..
+        } => {
+          keyword.push(c);
         }
         _ => {}
       }
