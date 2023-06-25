@@ -187,7 +187,6 @@ fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
       .unwrap();
     });
 
-
     safe_move_to(
       &mut stdout,
       cmp::min(5 + keyword.len(), width as usize - 1) as i16,
