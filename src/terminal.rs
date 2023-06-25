@@ -1,4 +1,3 @@
-use colored::Colorize;
 use std::io::{stdout, stdin, Write};
 
 
@@ -8,7 +7,7 @@ impl PopiTerminal {
   pub fn yes_or_no(question: String) -> bool {
     let mut answer = String::new();
     loop {
-      print!("{} [y/n]:{}", question, " ".normal().clear());
+      print!("{} [y/n]:", question);
       stdout().flush().unwrap();
       stdin().read_line(&mut answer).unwrap();
       match answer.trim().to_lowercase().as_str() {
