@@ -16,7 +16,6 @@ pub enum MatchedResult {
 impl PopiFilter {
   pub fn fuzzy_match(keyword: &str, target: &str) -> MatchedResult {
     let keyword_len = keyword.chars().count();
-    let mut inspected_pairs: Vec<(usize, usize)> = vec![];
     let mut canditates: Vec<MatchedString> = vec![];
 
     let mut keyword_filter: (usize, usize) = (0, 0);
@@ -46,9 +45,6 @@ impl PopiFilter {
 
       for start_point in start {
         for end_point in end {
-          if inspected_pairs.contains(&(*start_point, *end_point)) {
-            continue;
-          }
           if start_point > end_point {
             continue;
           }
@@ -62,7 +58,6 @@ impl PopiFilter {
             clipped_keyword,
             keyword_filter_penalty,
           ));
-          inspected_pairs.push((*start_point, *end_point));
         }
       }
       keyword_filter = Self::next_start_and_end(keyword_filter);
