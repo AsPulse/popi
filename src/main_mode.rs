@@ -1,7 +1,7 @@
 use crate::{
   config::LocalStorage,
   filter::MatchedString,
-  finder::{Repo, ReposFinder},
+  finder::{FoundRepo, Repo, ReposFinder},
   strings::{
     CLEAR_MESSAGE, CLEAR_MESSAGE_LEN, ERROR_PREFIX, EXIT_MESSAGE, EXIT_MESSAGE_LEN, POPI_HEADER,
   },
@@ -23,8 +23,14 @@ use crossterm::{
 use std::{
   cmp,
   io::{stdout, Stdout, Write},
+  sync::Arc,
+  time::Duration,
 };
 use thiserror::Error;
+use tokio::sync::{
+  mpsc::{self, Receiver},
+  RwLock,
+};
 
 static PINK_COLOR: style::Color = style::Color::Rgb {
   r: 255,
@@ -32,7 +38,7 @@ static PINK_COLOR: style::Color = style::Color::Rgb {
   b: 94,
 };
 
-pub fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
+pub async fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
   let mut stdout = stdout();
   execute!(
     stdout,
@@ -42,7 +48,7 @@ pub fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
   .unwrap();
 
   enable_raw_mode().unwrap();
-  let main_mode_process = main_mode(finder);
+  let main_mode_process = main_mode(finder).await;
   disable_raw_mode().unwrap();
 
   execute!(
@@ -84,6 +90,8 @@ pub enum MainModeError {
   EventReadError,
   #[error("Failed to write to stdout.")]
   StdoutWriteError,
+  #[error("Failed to join all workers.")]
+  WorkerJoinError,
 }
 
 enum EscapeBehavior {
@@ -91,187 +99,354 @@ enum EscapeBehavior {
   Exit,
 }
 
-fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
-  let mut stdout = stdout();
-  let mut keyword = String::new();
+struct RenderContext {
+  keyword: String,
+  escape_behavior: EscapeBehavior,
+  repos: Vec<FoundRepo>,
+  cursor_show: bool,
+}
 
+#[derive(Debug)]
+enum ContextChange {
+  RenderContextChanged,
+  KeywordChanged,
+  Finished(Result<Option<Repo>, MainModeError>),
+}
+
+#[derive(Clone)]
+struct MainModeWorker {
+  context: Arc<RwLock<RenderContext>>,
+  contextchange_tx: mpsc::Sender<ContextChange>,
+}
+
+async fn key_input(
+  MainModeWorker {
+    context,
+    contextchange_tx,
+  }: MainModeWorker,
+) {
   loop {
-    let (width, height) = terminal::size().map_err(|_| MainModeError::TerminalSizeUnavailable)?;
-    let (width, height) = (width as i16, height as i16);
-    let escape_behavior = if keyword.is_empty() {
-      EscapeBehavior::Exit
-    } else {
-      EscapeBehavior::Clear
-    };
-
-    queue!(
-      stdout,
-      terminal::Clear(terminal::ClearType::All),
-      cursor::MoveTo(0, 0),
-    )
-    .map_err(|_| MainModeError::StdoutWriteError)?;
-
-    let header_text = format!(
-      "{}{}{}",
-      " ",
-      POPI_HEADER,
-      safe_repeat(" ", width as isize - POPI_HEADER.len() as isize + 1)?
-    );
-
-    queue!(
-      stdout,
-      cursor::MoveTo(0, 0),
-      style::SetBackgroundColor(PINK_COLOR),
-      style::SetForegroundColor(style::Color::White),
-      style::SetAttribute(style::Attribute::Bold),
-      style::Print(header_text),
-      style::ResetColor,
-    )
-    .map_err(|_| MainModeError::StdoutWriteError)?;
-
-    safe_move_to(
-      &mut stdout,
-      width
-        - match escape_behavior {
-          EscapeBehavior::Clear => CLEAR_MESSAGE_LEN,
-          EscapeBehavior::Exit => EXIT_MESSAGE_LEN,
-        },
-      4,
-      width,
-      height,
-    )?;
-    queue!(
-      stdout,
-      style::SetForegroundColor(style::Color::DarkGrey),
-      style::Print(match escape_behavior {
-        EscapeBehavior::Clear => CLEAR_MESSAGE,
-        EscapeBehavior::Exit => EXIT_MESSAGE,
-      }),
-      style::ResetColor,
-    )
-    .map_err(|_| MainModeError::StdoutWriteError)?;
-
-    safe_move_to(&mut stdout, 0, 1, width, height)?;
-    let horizontal_line = safe_repeat(HORIZONTAL_LINE, width as isize - 2)?;
-    queue!(
-      stdout,
-      style::SetForegroundColor(style::Color::Magenta),
-      style::Print(TOP_LEFT_CORNER),
-      style::Print(&horizontal_line),
-      style::Print(TOP_RIGHT_CORNER),
-      style::ResetColor,
-    )
-    .map_err(|_| MainModeError::StdoutWriteError)?;
-
-    safe_move_to(&mut stdout, 0, 2, width, height)?;
-    queue!(
-      stdout,
-      style::SetForegroundColor(style::Color::Magenta),
-      style::Print(VERTICAL_LINE),
-      style::ResetColor,
-      style::Print(" 🔎 "),
-      // style::SetAttribute(style::Attribute::Bold),
-      style::Print(&keyword),
-      style::ResetColor,
-    )
-    .map_err(|_| MainModeError::StdoutWriteError)?;
-
-    safe_move_to(&mut stdout, width - 1, 2, width, height)?;
-    queue!(
-      stdout,
-      style::SetForegroundColor(style::Color::Magenta),
-      style::Print(VERTICAL_LINE),
-      style::ResetColor,
-    )
-    .map_err(|_| MainModeError::StdoutWriteError)?;
-
-    safe_move_to(&mut stdout, 0, 3, width, height)?;
-    queue!(
-      stdout,
-      style::SetForegroundColor(style::Color::Magenta),
-      style::Print(BOTTOM_LEFT_CORNER),
-      style::Print(&horizontal_line),
-      style::Print(BOTTOM_RIGHT_CORNER),
-      style::ResetColor,
-    )
-    .map_err(|_| MainModeError::StdoutWriteError)?;
-
-    let repo_views = height - 5;
-    let repos = finder.search_by(&keyword);
-    let rendering_repos = &repos[..cmp::min(repo_views as usize, repos.len())];
-    rendering_repos.iter().enumerate().for_each(|(i, repo)| {
-      let repo_name = &repo.repo.name;
-      let (before, matched, after) = split_by_matched(repo_name, &repo.matched_string);
-      safe_move_to(&mut stdout, 0, 5 + i as i16, width, height).unwrap();
-      queue!(
-        stdout,
-        style::SetForegroundColor(style::Color::Magenta),
-        style::Print(" • "),
-        style::ResetColor,
-        style::SetForegroundColor(style::Color::White),
-        style::Print(before),
-        style::SetAttribute(style::Attribute::Bold),
-        style::Print(matched),
-        style::SetAttribute(style::Attribute::Reset),
-        style::Print(after),
-        style::ResetColor,
-      )
-      .unwrap();
-    });
-
-    safe_move_to(
-      &mut stdout,
-      cmp::min(5 + keyword.len(), width as usize - 1) as i16,
-      2,
-      width,
-      height,
-    )?;
-
-    queue!(
-      stdout,
-      cursor::Show,
-      cursor::SetCursorStyle::SteadyUnderScore,
-    )
-    .map_err(|_| MainModeError::StdoutWriteError)?;
-
-    stdout
-      .flush()
-      .map_err(|_| MainModeError::StdoutWriteError)?;
-    if let Event::Key(key_event) = event::read().map_err(|_| MainModeError::EventReadError)? {
-      match key_event {
-        event::KeyEvent {
-          code: KeyCode::Char('c'),
-          modifiers: KeyModifiers::CONTROL,
-          ..
-        } => {
-          break Ok(None);
-        }
-        event::KeyEvent {
-          code: KeyCode::Esc, ..
-        } => match escape_behavior {
-          EscapeBehavior::Clear => {
-            keyword.clear();
+    tokio::select! {
+      _ = contextchange_tx.closed() => { break; },
+      event = tokio::spawn(async { event::read() }) => {
+        match event {
+          Ok(Ok(Event::Key(key_event))) => {
+          match key_event {
+              event::KeyEvent {
+              code: KeyCode::Char('c'),
+              modifiers: KeyModifiers::CONTROL,
+              ..
+              } => {
+                contextchange_tx.send(ContextChange::Finished(Ok(None))).await.unwrap();
+                break;
+              }
+              event::KeyEvent {
+              code: KeyCode::Esc, ..
+              } => {
+                let mut context = context.write().await;
+                match context.escape_behavior {
+                  EscapeBehavior::Clear => {
+                    context.keyword.clear();
+                    contextchange_tx.send(ContextChange::KeywordChanged).await.unwrap();
+                  }
+                  EscapeBehavior::Exit => {
+                    contextchange_tx.send(ContextChange::Finished(Ok(None))).await.unwrap();
+                    break;
+                  }
+                }
+              }
+              KeyEvent {
+              code: KeyCode::Backspace,
+              ..
+              } => {
+                let mut context = context.write().await;
+                context.keyword.pop();
+                drop(context);
+                contextchange_tx.send(ContextChange::KeywordChanged).await.unwrap();
+              }
+              KeyEvent {
+              code: KeyCode::Char(c),
+              ..
+              } => {
+                let mut context = context.write().await;
+                context.keyword.push(c);
+                drop(context);
+                contextchange_tx.send(ContextChange::KeywordChanged).await.unwrap();
+              }
+              _ => {}
+            }
           }
-          EscapeBehavior::Exit => {
-            break Ok(None);
+          Ok(Ok(_)) => {
+            contextchange_tx.send(ContextChange::RenderContextChanged).await.unwrap();
           }
-        },
-        KeyEvent {
-          code: KeyCode::Backspace,
-          ..
-        } => {
-          keyword.pop();
+          Ok(Err(_)) | Err(_) => {
+            contextchange_tx.send(ContextChange::Finished(Err(MainModeError::EventReadError))).await.unwrap();
+            break;
+          }
         }
-        KeyEvent {
-          code: KeyCode::Char(c),
-          ..
-        } => {
-          keyword.push(c);
-        }
-        _ => {}
       }
     }
   }
+}
+
+async fn keyword_change(
+  finder: ReposFinder,
+  mut keywordchange_rx: Receiver<String>,
+  MainModeWorker {
+    context,
+    contextchange_tx,
+  }: MainModeWorker,
+) {
+  loop {
+    tokio::select! {
+      _ = contextchange_tx.closed() => {
+        break;
+      }
+      Some(keyword) = keywordchange_rx.recv() => {
+        {
+          let mut context = context.write().await;
+          context.escape_behavior = if keyword.is_empty() {
+            EscapeBehavior::Exit
+          } else {
+            EscapeBehavior::Clear
+          };
+        }
+        contextchange_tx.send(ContextChange::RenderContextChanged).await.unwrap();
+        let repos = if keyword.is_empty() {
+          vec![]
+        } else {
+          finder.search_by(&keyword)
+        };
+        {
+          let mut context = context.write().await;
+          context.repos = repos;
+        }
+        contextchange_tx.send(ContextChange::RenderContextChanged).await.unwrap();
+      }
+    }
+  }
+}
+
+async fn cursor_blinker(
+  MainModeWorker {
+    context,
+    contextchange_tx,
+  }: MainModeWorker,
+) {
+  loop {
+    tokio::select! {
+      _ = contextchange_tx.closed() => {
+        break;
+      }
+      _ = tokio::time::sleep(Duration::from_millis(500)) => {
+        {
+          let mut context = context.write().await;
+          context.cursor_show = !context.cursor_show;
+        }
+        contextchange_tx.send(ContextChange::RenderContextChanged).await.unwrap();
+      }
+    }
+  }
+}
+
+async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
+  let (contextchange_tx, mut contextchange_rx) = mpsc::channel::<ContextChange>(20);
+  let (keywordchange_tx, keywordchange_rx) = mpsc::channel::<String>(20);
+
+  let shared_context = Arc::new(RwLock::<RenderContext>::new(RenderContext {
+    keyword: String::new(),
+    escape_behavior: EscapeBehavior::Clear,
+    repos: vec![],
+    cursor_show: false,
+  }));
+
+  let worker = MainModeWorker {
+    context: shared_context.clone(),
+    contextchange_tx,
+  };
+
+  let keyword_change_worker =
+    tokio::spawn(keyword_change(finder, keywordchange_rx, worker.clone()));
+  let key_input_worker = tokio::spawn(key_input(worker.clone()));
+  let cursor_blinker_worker = tokio::spawn(cursor_blinker(worker.clone()));
+
+  worker
+    .contextchange_tx
+    .send(ContextChange::RenderContextChanged)
+    .await
+    .unwrap();
+  let result = loop {
+    match contextchange_rx.recv().await.unwrap() {
+      ContextChange::RenderContextChanged => {
+        let context = shared_context.read().await;
+        if let Err(e) = render(&context).await {
+          break Err(e);
+        };
+      }
+      ContextChange::KeywordChanged => {
+        let keyword = {
+          let context = shared_context.read().await;
+          context.keyword.clone()
+        };
+        keywordchange_tx.send(keyword).await.unwrap();
+      }
+      ContextChange::Finished(result) => {
+        break result;
+      }
+    }
+  };
+  contextchange_rx.close();
+  tokio::join!(
+    keyword_change_worker,
+    key_input_worker,
+    cursor_blinker_worker
+  )
+  .0
+  .map_err(|_| MainModeError::WorkerJoinError)?;
+  result
+}
+
+async fn render(context: &RenderContext) -> Result<(), MainModeError> {
+  let mut stdout = stdout();
+  let (width, height) = terminal::size().map_err(|_| MainModeError::TerminalSizeUnavailable)?;
+  let (width, height) = (width as i16, height as i16);
+
+  queue!(
+    stdout,
+    terminal::Clear(terminal::ClearType::All),
+    cursor::MoveTo(0, 0),
+  )
+  .map_err(|_| MainModeError::StdoutWriteError)?;
+
+  let header_text = format!(
+    "{}{}{}",
+    " ",
+    POPI_HEADER,
+    safe_repeat(" ", width as isize - POPI_HEADER.len() as isize + 1)?
+  );
+
+  queue!(
+    stdout,
+    cursor::MoveTo(0, 0),
+    style::SetBackgroundColor(PINK_COLOR),
+    style::SetForegroundColor(style::Color::White),
+    style::SetAttribute(style::Attribute::Bold),
+    style::Print(header_text),
+    style::ResetColor,
+  )
+  .map_err(|_| MainModeError::StdoutWriteError)?;
+
+  safe_move_to(
+    &mut stdout,
+    width
+      - match context.escape_behavior {
+        EscapeBehavior::Clear => CLEAR_MESSAGE_LEN,
+        EscapeBehavior::Exit => EXIT_MESSAGE_LEN,
+      },
+    4,
+    width,
+    height,
+  )?;
+  queue!(
+    stdout,
+    style::SetForegroundColor(style::Color::DarkGrey),
+    style::Print(match context.escape_behavior {
+      EscapeBehavior::Clear => CLEAR_MESSAGE,
+      EscapeBehavior::Exit => EXIT_MESSAGE,
+    }),
+    style::ResetColor,
+  )
+  .map_err(|_| MainModeError::StdoutWriteError)?;
+
+  safe_move_to(&mut stdout, 0, 1, width, height)?;
+  let horizontal_line = safe_repeat(HORIZONTAL_LINE, width as isize - 2)?;
+  queue!(
+    stdout,
+    style::SetForegroundColor(style::Color::Magenta),
+    style::Print(TOP_LEFT_CORNER),
+    style::Print(&horizontal_line),
+    style::Print(TOP_RIGHT_CORNER),
+    style::ResetColor,
+  )
+  .map_err(|_| MainModeError::StdoutWriteError)?;
+
+  safe_move_to(&mut stdout, 0, 2, width, height)?;
+  queue!(
+    stdout,
+    style::SetForegroundColor(style::Color::Magenta),
+    style::Print(VERTICAL_LINE),
+    style::ResetColor,
+    style::Print(" 🔎 "),
+    // style::SetAttribute(style::Attribute::Bold),
+    style::Print(&context.keyword),
+    style::ResetColor,
+  )
+  .map_err(|_| MainModeError::StdoutWriteError)?;
+
+  safe_move_to(&mut stdout, width - 1, 2, width, height)?;
+  queue!(
+    stdout,
+    style::SetForegroundColor(style::Color::Magenta),
+    style::Print(VERTICAL_LINE),
+    style::ResetColor,
+  )
+  .map_err(|_| MainModeError::StdoutWriteError)?;
+
+  safe_move_to(&mut stdout, 0, 3, width, height)?;
+  queue!(
+    stdout,
+    style::SetForegroundColor(style::Color::Magenta),
+    style::Print(BOTTOM_LEFT_CORNER),
+    style::Print(&horizontal_line),
+    style::Print(BOTTOM_RIGHT_CORNER),
+    style::ResetColor,
+  )
+  .map_err(|_| MainModeError::StdoutWriteError)?;
+
+  let repo_views = height - 5;
+  let rendering_repos = &context.repos[..cmp::min(repo_views as usize, context.repos.len())];
+  rendering_repos.iter().enumerate().for_each(|(i, repo)| {
+    safe_move_to(&mut stdout, 0, 5 + i as i16, width, height).unwrap();
+    let (before, bold, after) = split_by_matched(&repo.repo.name, &repo.matched_string);
+    queue!(
+      stdout,
+      style::SetForegroundColor(style::Color::Magenta),
+      style::Print(" • "),
+      style::ResetColor,
+      style::SetForegroundColor(style::Color::White),
+      style::Print(before),
+      style::SetAttribute(style::Attribute::Bold),
+      style::Print(bold),
+      style::SetAttribute(style::Attribute::Reset),
+      style::Print(after),
+      style::ResetColor,
+    )
+    .unwrap();
+  });
+
+  safe_move_to(
+    &mut stdout,
+    cmp::min(5 + context.keyword.len(), width as usize - 1) as i16,
+    2,
+    width,
+    height,
+  )?;
+
+  if context.cursor_show {
+    queue!(stdout, cursor::Show)
+  } else {
+    queue!(stdout, cursor::Hide)
+  }
+  .map_err(|_| MainModeError::StdoutWriteError)?;
+
+  queue!(stdout, cursor::SetCursorStyle::SteadyUnderScore,)
+    .map_err(|_| MainModeError::StdoutWriteError)?;
+
+  stdout
+    .flush()
+    .map_err(|_| MainModeError::StdoutWriteError)?;
+
+  Ok(())
 }
 
 fn split_by_matched<'a>(s: &'a str, meta: &MatchedString) -> (&'a str, &'a str, &'a str) {
