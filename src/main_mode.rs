@@ -23,15 +23,12 @@ use crossterm::{
 use std::{
   cmp,
   io::{stdout, Stdout, Write},
-  sync::{mpsc::Sender, Arc},
+  sync::Arc,
 };
 use thiserror::Error;
-use tokio::{
-  sync::{
-    mpsc::{self, Receiver},
-    oneshot, Mutex, RwLock,
-  },
-  task::JoinError,
+use tokio::sync::{
+  mpsc::{self, Receiver},
+  RwLock,
 };
 
 static PINK_COLOR: style::Color = style::Color::Rgb {
@@ -123,8 +120,8 @@ struct MainModeWorker {
 
 async fn key_input(
   MainModeWorker {
-  context,
-  contextchange_tx,
+    context,
+    contextchange_tx,
   }: MainModeWorker,
 ) {
   loop {
@@ -178,7 +175,9 @@ async fn key_input(
               _ => {}
             }
           }
-          Ok(Ok(_)) => { }
+          Ok(Ok(_)) => {
+            contextchange_tx.send(ContextChange::RenderContextChanged).await.unwrap();
+          }
           Ok(Err(_)) | Err(_) => {
             contextchange_tx.send(ContextChange::Finished(Err(MainModeError::EventReadError))).await.unwrap();
             break;
@@ -193,9 +192,9 @@ async fn keyword_change(
   finder: ReposFinder,
   mut keywordchange_rx: Receiver<String>,
   MainModeWorker {
-  context,
-  contextchange_tx,
-  }: MainModeWorker
+    context,
+    contextchange_tx,
+  }: MainModeWorker,
 ) {
   loop {
     tokio::select! {
@@ -405,14 +404,15 @@ fn render(context: &RenderContext) -> Result<(), MainModeError> {
     height,
   )?;
 
-  {
-    queue!(
-      stdout,
-      cursor::Show,
-      cursor::SetCursorStyle::SteadyUnderScore,
-    )
-    .map_err(|_| MainModeError::StdoutWriteError)?;
+  if context.cursor_show {
+    queue!(stdout, cursor::SetCursorStyle::BlinkingBlock,)
+  } else {
+    queue!(stdout, cursor::SetCursorStyle::SteadyBlock,)
   }
+  .map_err(|_| MainModeError::StdoutWriteError)?;
+
+  queue!(stdout, cursor::SetCursorStyle::SteadyUnderScore,)
+    .map_err(|_| MainModeError::StdoutWriteError)?;
 
   stdout
     .flush()
