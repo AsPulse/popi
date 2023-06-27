@@ -23,7 +23,8 @@ use crossterm::{
 use std::{
   cmp,
   io::{stdout, Stdout, Write},
-  sync::Arc, time::Duration,
+  sync::Arc,
+  time::Duration,
 };
 use thiserror::Error;
 use tokio::sync::{
@@ -295,9 +296,13 @@ async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
     }
   };
   contextchange_rx.close();
-  tokio::join!(keyword_change_worker, key_input_worker, cursor_blinker_worker)
-    .0
-    .map_err(|_| MainModeError::WorkerJoinError)?;
+  tokio::join!(
+    keyword_change_worker,
+    key_input_worker,
+    cursor_blinker_worker
+  )
+  .0
+  .map_err(|_| MainModeError::WorkerJoinError)?;
   result
 }
 
