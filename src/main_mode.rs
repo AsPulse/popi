@@ -23,7 +23,7 @@ use crossterm::{
 use std::{
   cmp,
   io::{stdout, Stdout, Write},
-  sync::Arc,
+  sync::Arc, time::Duration,
 };
 use thiserror::Error;
 use tokio::sync::{
@@ -226,6 +226,28 @@ async fn keyword_change(
   }
 }
 
+async fn cursor_blinker(
+  MainModeWorker {
+    context,
+    contextchange_tx,
+  }: MainModeWorker,
+) {
+  loop {
+    tokio::select! {
+      _ = contextchange_tx.closed() => {
+        break;
+      }
+      _ = tokio::time::sleep(Duration::from_millis(500)) => {
+        {
+          let mut context = context.write().await;
+          context.cursor_show = !context.cursor_show;
+        }
+        contextchange_tx.send(ContextChange::RenderContextChanged).await.unwrap();
+      }
+    }
+  }
+}
+
 async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
   let (contextchange_tx, mut contextchange_rx) = mpsc::channel::<ContextChange>(20);
   let (keywordchange_tx, keywordchange_rx) = mpsc::channel::<String>(20);
@@ -245,6 +267,7 @@ async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
   let keyword_change_worker =
     tokio::spawn(keyword_change(finder, keywordchange_rx, worker.clone()));
   let key_input_worker = tokio::spawn(key_input(worker.clone()));
+  let cursor_blinker_worker = tokio::spawn(cursor_blinker(worker.clone()));
 
   worker
     .contextchange_tx
@@ -255,7 +278,7 @@ async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
     match contextchange_rx.recv().await.unwrap() {
       ContextChange::RenderContextChanged => {
         let context = shared_context.read().await;
-        if let Err(e) = render(&context) {
+        if let Err(e) = render(&context).await {
           break Err(e);
         };
       }
@@ -272,13 +295,13 @@ async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
     }
   };
   contextchange_rx.close();
-  tokio::join!(keyword_change_worker, key_input_worker)
+  tokio::join!(keyword_change_worker, key_input_worker, cursor_blinker_worker)
     .0
     .map_err(|_| MainModeError::WorkerJoinError)?;
   result
 }
 
-fn render(context: &RenderContext) -> Result<(), MainModeError> {
+async fn render(context: &RenderContext) -> Result<(), MainModeError> {
   let mut stdout = stdout();
   let (width, height) = terminal::size().map_err(|_| MainModeError::TerminalSizeUnavailable)?;
   let (width, height) = (width as i16, height as i16);
@@ -405,9 +428,9 @@ fn render(context: &RenderContext) -> Result<(), MainModeError> {
   )?;
 
   if context.cursor_show {
-    queue!(stdout, cursor::SetCursorStyle::BlinkingBlock,)
+    queue!(stdout, cursor::Show)
   } else {
-    queue!(stdout, cursor::SetCursorStyle::SteadyBlock,)
+    queue!(stdout, cursor::Hide)
   }
   .map_err(|_| MainModeError::StdoutWriteError)?;
 
