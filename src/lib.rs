@@ -73,7 +73,7 @@ pub async fn run() {
     }
   }
 
-  call_main_mode(storage, finder);
+  call_main_mode(storage, finder).await;
 }
 
 fn startup_message() {

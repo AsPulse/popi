@@ -23,8 +23,16 @@ use crossterm::{
 use std::{
   cmp,
   io::{stdout, Stdout, Write},
+  sync::{mpsc::Sender, Arc},
 };
 use thiserror::Error;
+use tokio::{
+  sync::{
+    mpsc::{self, Receiver},
+    oneshot, Mutex, RwLock,
+  },
+  task::JoinError,
+};
 
 static PINK_COLOR: style::Color = style::Color::Rgb {
   r: 255,
@@ -32,7 +40,7 @@ static PINK_COLOR: style::Color = style::Color::Rgb {
   b: 94,
 };
 
-pub fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
+pub async fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
   let mut stdout = stdout();
   execute!(
     stdout,
@@ -42,7 +50,7 @@ pub fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
   .unwrap();
 
   enable_raw_mode().unwrap();
-  let main_mode_process = main_mode(finder);
+  let main_mode_process = main_mode(finder).await;
   disable_raw_mode().unwrap();
 
   execute!(
@@ -84,6 +92,8 @@ pub enum MainModeError {
   EventReadError,
   #[error("Failed to write to stdout.")]
   StdoutWriteError,
+  #[error("Failed to join all workers.")]
+  WorkerJoinError,
 }
 
 enum EscapeBehavior {
@@ -95,65 +105,178 @@ struct RenderContext {
   keyword: String,
   escape_behavior: EscapeBehavior,
   repos: Vec<FoundRepo>,
+  cursor_show: bool,
 }
 
-fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
-  let mut context = RenderContext {
-    keyword: String::new(),
-    escape_behavior: EscapeBehavior::Clear,
-    repos: vec![],
-  };
+#[derive(Debug)]
+enum ContextChange {
+  RenderContextChanged,
+  KeywordChanged,
+  Finished(Result<Option<Repo>, MainModeError>),
+}
 
+#[derive(Clone)]
+struct MainModeWorker {
+  context: Arc<RwLock<RenderContext>>,
+  contextchange_tx: mpsc::Sender<ContextChange>,
+}
+
+async fn key_input(
+  MainModeWorker {
+  context,
+  contextchange_tx,
+  }: MainModeWorker,
+) {
   loop {
-    context.escape_behavior = if context.keyword.is_empty() {
-      EscapeBehavior::Exit
-    } else {
-      EscapeBehavior::Clear
-    };
-
-    context.repos = if context.keyword.is_empty() {
-      vec![]
-    } else {
-      finder.search_by(&context.keyword)
-    };
-
-    render(&context)?;
-
-    if let Event::Key(key_event) = event::read().map_err(|_| MainModeError::EventReadError)? {
-      match key_event {
-        event::KeyEvent {
-          code: KeyCode::Char('c'),
-          modifiers: KeyModifiers::CONTROL,
-          ..
-        } => {
-          break Ok(None);
-        }
-        event::KeyEvent {
-          code: KeyCode::Esc, ..
-        } => match context.escape_behavior {
-          EscapeBehavior::Clear => {
-            context.keyword.clear();
+    tokio::select! {
+      _ = contextchange_tx.closed() => { break; },
+      event = tokio::spawn(async { event::read() }) => {
+        match event {
+          Ok(Ok(Event::Key(key_event))) => {
+          match key_event {
+              event::KeyEvent {
+              code: KeyCode::Char('c'),
+              modifiers: KeyModifiers::CONTROL,
+              ..
+              } => {
+                contextchange_tx.send(ContextChange::Finished(Ok(None))).await.unwrap();
+                break;
+              }
+              event::KeyEvent {
+              code: KeyCode::Esc, ..
+              } => {
+                let mut context = context.write().await;
+                match context.escape_behavior {
+                  EscapeBehavior::Clear => {
+                    context.keyword.clear();
+                    contextchange_tx.send(ContextChange::KeywordChanged).await.unwrap();
+                  }
+                  EscapeBehavior::Exit => {
+                    contextchange_tx.send(ContextChange::Finished(Ok(None))).await.unwrap();
+                    break;
+                  }
+                }
+              }
+              KeyEvent {
+              code: KeyCode::Backspace,
+              ..
+              } => {
+                let mut context = context.write().await;
+                context.keyword.pop();
+                drop(context);
+                contextchange_tx.send(ContextChange::KeywordChanged).await.unwrap();
+              }
+              KeyEvent {
+              code: KeyCode::Char(c),
+              ..
+              } => {
+                let mut context = context.write().await;
+                context.keyword.push(c);
+                drop(context);
+                contextchange_tx.send(ContextChange::KeywordChanged).await.unwrap();
+              }
+              _ => {}
+            }
           }
-          EscapeBehavior::Exit => {
-            break Ok(None);
+          Ok(Ok(_)) => { }
+          Ok(Err(_)) | Err(_) => {
+            contextchange_tx.send(ContextChange::Finished(Err(MainModeError::EventReadError))).await.unwrap();
+            break;
           }
-        },
-        KeyEvent {
-          code: KeyCode::Backspace,
-          ..
-        } => {
-          context.keyword.pop();
         }
-        KeyEvent {
-          code: KeyCode::Char(c),
-          ..
-        } => {
-          context.keyword.push(c);
-        }
-        _ => {}
       }
     }
   }
+}
+
+async fn keyword_change(
+  finder: ReposFinder,
+  mut keywordchange_rx: Receiver<String>,
+  MainModeWorker {
+  context,
+  contextchange_tx,
+  }: MainModeWorker
+) {
+  loop {
+    tokio::select! {
+      _ = contextchange_tx.closed() => {
+        break;
+      }
+      Some(keyword) = keywordchange_rx.recv() => {
+        {
+          let mut context = context.write().await;
+          context.escape_behavior = if keyword.is_empty() {
+            EscapeBehavior::Exit
+          } else {
+            EscapeBehavior::Clear
+          };
+        }
+        contextchange_tx.send(ContextChange::RenderContextChanged).await.unwrap();
+        let repos = if keyword.is_empty() {
+          vec![]
+        } else {
+          finder.search_by(&keyword)
+        };
+        {
+          let mut context = context.write().await;
+          context.repos = repos;
+        }
+        contextchange_tx.send(ContextChange::RenderContextChanged).await.unwrap();
+      }
+    }
+  }
+}
+
+async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
+  let (contextchange_tx, mut contextchange_rx) = mpsc::channel::<ContextChange>(20);
+  let (keywordchange_tx, keywordchange_rx) = mpsc::channel::<String>(20);
+
+  let shared_context = Arc::new(RwLock::<RenderContext>::new(RenderContext {
+    keyword: String::new(),
+    escape_behavior: EscapeBehavior::Clear,
+    repos: vec![],
+    cursor_show: false,
+  }));
+
+  let worker = MainModeWorker {
+    context: shared_context.clone(),
+    contextchange_tx,
+  };
+
+  let keyword_change_worker =
+    tokio::spawn(keyword_change(finder, keywordchange_rx, worker.clone()));
+  let key_input_worker = tokio::spawn(key_input(worker.clone()));
+
+  worker
+    .contextchange_tx
+    .send(ContextChange::RenderContextChanged)
+    .await
+    .unwrap();
+  let result = loop {
+    match contextchange_rx.recv().await.unwrap() {
+      ContextChange::RenderContextChanged => {
+        let context = shared_context.read().await;
+        if let Err(e) = render(&context) {
+          break Err(e);
+        };
+      }
+      ContextChange::KeywordChanged => {
+        let keyword = {
+          let context = shared_context.read().await;
+          context.keyword.clone()
+        };
+        keywordchange_tx.send(keyword).await.unwrap();
+      }
+      ContextChange::Finished(result) => {
+        break result;
+      }
+    }
+  };
+  contextchange_rx.close();
+  tokio::join!(keyword_change_worker, key_input_worker)
+    .0
+    .map_err(|_| MainModeError::WorkerJoinError)?;
+  result
 }
 
 fn render(context: &RenderContext) -> Result<(), MainModeError> {
@@ -282,12 +405,14 @@ fn render(context: &RenderContext) -> Result<(), MainModeError> {
     height,
   )?;
 
-  queue!(
-    stdout,
-    cursor::Show,
-    cursor::SetCursorStyle::SteadyUnderScore,
-  )
-  .map_err(|_| MainModeError::StdoutWriteError)?;
+  {
+    queue!(
+      stdout,
+      cursor::Show,
+      cursor::SetCursorStyle::SteadyUnderScore,
+    )
+    .map_err(|_| MainModeError::StdoutWriteError)?;
+  }
 
   stdout
     .flush()
