@@ -1,6 +1,11 @@
+mod safe_methods;
+mod split_by_matched;
+mod worker_cursor_blinker;
+mod worker_key_input;
+mod worker_keyword_change;
+
 use crate::{
   config::LocalStorage,
-  filter::MatchedString,
   finder::{FoundRepo, Repo, ReposFinder},
   strings::{
     CLEAR_MESSAGE, CLEAR_MESSAGE_LEN, ERROR_PREFIX, EXIT_MESSAGE, EXIT_MESSAGE_LEN, POPI_HEADER,
@@ -17,20 +22,24 @@ use crossterm::{
   terminal::{disable_raw_mode, enable_raw_mode},
 };
 use crossterm::{
-  event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
   queue, style, terminal,
 };
 use std::{
   cmp,
-  io::{stdout, Stdout, Write},
+  io::{stdout, Write},
   sync::Arc,
-  time::Duration,
 };
 use thiserror::Error;
 use tokio::sync::{
-  mpsc::{self, Receiver},
+  mpsc::{self},
   RwLock,
 };
+
+use safe_methods::{safe_move_to, safe_repeat};
+use split_by_matched::split_by_matched;
+use worker_cursor_blinker::cursor_blinker;
+use worker_key_input::key_input;
+use worker_keyword_change::keyword_change;
 
 static PINK_COLOR: style::Color = style::Color::Rgb {
   r: 255,
@@ -94,12 +103,12 @@ pub enum MainModeError {
   WorkerJoinError,
 }
 
-enum EscapeBehavior {
+pub(super) enum EscapeBehavior {
   Clear,
   Exit,
 }
 
-struct RenderContext {
+pub(super) struct RenderContext {
   keyword: String,
   escape_behavior: EscapeBehavior,
   repos: Vec<FoundRepo>,
@@ -107,146 +116,16 @@ struct RenderContext {
 }
 
 #[derive(Debug)]
-enum ContextChange {
+pub(super) enum ContextChange {
   RenderContextChanged,
   KeywordChanged,
   Finished(Result<Option<Repo>, MainModeError>),
 }
 
 #[derive(Clone)]
-struct MainModeWorker {
+pub(self) struct MainModeWorker {
   context: Arc<RwLock<RenderContext>>,
   contextchange_tx: mpsc::Sender<ContextChange>,
-}
-
-async fn key_input(
-  MainModeWorker {
-    context,
-    contextchange_tx,
-  }: MainModeWorker,
-) {
-  loop {
-    tokio::select! {
-      _ = contextchange_tx.closed() => { break; },
-      event = tokio::spawn(async { event::read() }) => {
-        match event {
-          Ok(Ok(Event::Key(key_event))) => {
-          match key_event {
-              event::KeyEvent {
-              code: KeyCode::Char('c'),
-              modifiers: KeyModifiers::CONTROL,
-              ..
-              } => {
-                contextchange_tx.send(ContextChange::Finished(Ok(None))).await.unwrap();
-                break;
-              }
-              event::KeyEvent {
-              code: KeyCode::Esc, ..
-              } => {
-                let mut context = context.write().await;
-                match context.escape_behavior {
-                  EscapeBehavior::Clear => {
-                    context.keyword.clear();
-                    contextchange_tx.send(ContextChange::KeywordChanged).await.unwrap();
-                  }
-                  EscapeBehavior::Exit => {
-                    contextchange_tx.send(ContextChange::Finished(Ok(None))).await.unwrap();
-                    break;
-                  }
-                }
-              }
-              KeyEvent {
-              code: KeyCode::Backspace,
-              ..
-              } => {
-                let mut context = context.write().await;
-                context.keyword.pop();
-                drop(context);
-                contextchange_tx.send(ContextChange::KeywordChanged).await.unwrap();
-              }
-              KeyEvent {
-              code: KeyCode::Char(c),
-              ..
-              } => {
-                let mut context = context.write().await;
-                context.keyword.push(c);
-                drop(context);
-                contextchange_tx.send(ContextChange::KeywordChanged).await.unwrap();
-              }
-              _ => {}
-            }
-          }
-          Ok(Ok(_)) => {
-            contextchange_tx.send(ContextChange::RenderContextChanged).await.unwrap();
-          }
-          Ok(Err(_)) | Err(_) => {
-            contextchange_tx.send(ContextChange::Finished(Err(MainModeError::EventReadError))).await.unwrap();
-            break;
-          }
-        }
-      }
-    }
-  }
-}
-
-async fn keyword_change(
-  finder: ReposFinder,
-  mut keywordchange_rx: Receiver<String>,
-  MainModeWorker {
-    context,
-    contextchange_tx,
-  }: MainModeWorker,
-) {
-  loop {
-    tokio::select! {
-      _ = contextchange_tx.closed() => {
-        break;
-      }
-      Some(keyword) = keywordchange_rx.recv() => {
-        {
-          let mut context = context.write().await;
-          context.escape_behavior = if keyword.is_empty() {
-            EscapeBehavior::Exit
-          } else {
-            EscapeBehavior::Clear
-          };
-        }
-        contextchange_tx.send(ContextChange::RenderContextChanged).await.unwrap();
-        let repos = if keyword.is_empty() {
-          vec![]
-        } else {
-          finder.search_by(&keyword)
-        };
-        {
-          let mut context = context.write().await;
-          context.repos = repos;
-        }
-        contextchange_tx.send(ContextChange::RenderContextChanged).await.unwrap();
-      }
-    }
-  }
-}
-
-async fn cursor_blinker(
-  MainModeWorker {
-    context,
-    contextchange_tx,
-  }: MainModeWorker,
-) {
-  loop {
-    tokio::select! {
-      _ = contextchange_tx.closed() => {
-        break;
-      }
-      _ = tokio::time::sleep(Duration::from_millis(500)) => {
-        {
-          let mut context = context.write().await;
-          context.cursor_show = !context.cursor_show;
-        }
-        contextchange_tx.send(ContextChange::RenderContextChanged).await.unwrap();
-      }
-    }
-  }
 }
 
 async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
@@ -447,115 +326,4 @@ async fn render(context: &RenderContext) -> Result<(), MainModeError> {
     .map_err(|_| MainModeError::StdoutWriteError)?;
 
   Ok(())
-}
-
-fn split_by_matched<'a>(s: &'a str, meta: &MatchedString) -> (&'a str, &'a str, &'a str) {
-  (
-    &s[..meta.matched_start],
-    &s[meta.matched_start..meta.matched_start + meta.matched_length],
-    &s[meta.matched_start + meta.matched_length..],
-  )
-}
-
-fn safe_repeat(s: &str, n: isize) -> Result<String, MainModeError> {
-  if n < 0 {
-    return Err(MainModeError::NotEnoughtTerminalWidth);
-  }
-  if n == 0 {
-    return Ok(String::new());
-  }
-  Ok(s.repeat(n as usize))
-}
-
-fn safe_move_to(
-  stdout: &mut Stdout,
-  x: i16,
-  y: i16,
-  width: i16,
-  height: i16,
-) -> Result<(), MainModeError> {
-  if x >= width || x < 0 {
-    return Err(MainModeError::NotEnoughtTerminalWidth);
-  }
-  if y >= height || y < 0 {
-    return Err(MainModeError::NotEnoughtTerminalHeight);
-  }
-  queue!(stdout, cursor::MoveTo(x as u16, y as u16))
-    .map_err(|_| MainModeError::StdoutWriteError)?;
-  Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn test_split_by_matched() {
-    assert_eq!(
-      split_by_matched(
-        "hello",
-        &MatchedString {
-          matched_start: 0,
-          matched_length: 1,
-          distance: 0,
-        }
-      ),
-      ("", "h", "ello")
-    );
-    assert_eq!(
-      split_by_matched(
-        "hello",
-        &MatchedString {
-          matched_start: 1,
-          matched_length: 1,
-          distance: 0,
-        }
-      ),
-      ("h", "e", "llo")
-    );
-    assert_eq!(
-      split_by_matched(
-        "hello",
-        &MatchedString {
-          matched_start: 1,
-          matched_length: 2,
-          distance: 0,
-        }
-      ),
-      ("h", "el", "lo")
-    );
-    assert_eq!(
-      split_by_matched(
-        "hello",
-        &MatchedString {
-          matched_start: 1,
-          matched_length: 3,
-          distance: 0,
-        }
-      ),
-      ("h", "ell", "o")
-    );
-    assert_eq!(
-      split_by_matched(
-        "hello",
-        &MatchedString {
-          matched_start: 1,
-          matched_length: 4,
-          distance: 0,
-        }
-      ),
-      ("h", "ello", "")
-    );
-    assert_eq!(
-      split_by_matched(
-        "hello",
-        &MatchedString {
-          matched_start: 0,
-          matched_length: 5,
-          distance: 0,
-        }
-      ),
-      ("", "hello", "")
-    );
-  }
 }
