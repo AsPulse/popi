@@ -21,9 +21,7 @@ use crossterm::{
   cursor,
   terminal::{disable_raw_mode, enable_raw_mode},
 };
-use crossterm::{
-  queue, style, terminal,
-};
+use crossterm::{queue, style, terminal};
 use std::{
   cmp,
   io::{stdout, Write},
