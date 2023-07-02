@@ -5,7 +5,7 @@ mod worker_key_input;
 mod worker_keyword_change;
 
 use crate::{
-  colors::{LIGHTER_PINK_COLOR, PINK_COLOR, BACKGROUND_PINK_COLOR},
+  colors::{BACKGROUND_PINK_COLOR, LIGHTER_PINK_COLOR, PINK_COLOR},
   config::LocalStorage,
   finder::{FoundRepo, Repo, ReposFinder},
   strings::{
