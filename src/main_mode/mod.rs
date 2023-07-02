@@ -285,7 +285,7 @@ async fn render(context: &RenderContext) -> Result<(), MainModeError> {
         style::Print(" "),
         style::SetBackgroundColor(BACKGROUND_PINK_COLOR),
         style::SetForegroundColor(style::Color::White),
-        style::Print(" ➤ "),
+        style::Print(" » "),
         style::Print(before),
         style::SetAttribute(style::Attribute::Bold),
         style::Print(bold),
