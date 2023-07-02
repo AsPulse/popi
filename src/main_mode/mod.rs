@@ -29,7 +29,7 @@ use std::{
   sync::Arc,
 };
 use thiserror::Error;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{mpsc, RwLock, RwLockWriteGuard};
 
 use safe_methods::{safe_move_to, safe_repeat};
 use split_by_matched::split_by_matched;
@@ -149,8 +149,8 @@ async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
   let result = loop {
     match contextchange_rx.recv().await.unwrap() {
       ContextChange::RenderContextChanged => {
-        let context = shared_context.read().await;
-        if let Err(e) = render(&context).await {
+        let context = shared_context.write().await;
+        if let Err(e) = render(context).await {
           break Err(e);
         };
       }
@@ -177,7 +177,7 @@ async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
   result
 }
 
-async fn render(context: &RenderContext) -> Result<(), MainModeError> {
+async fn render(mut context: RwLockWriteGuard<'_, RenderContext>) -> Result<(), MainModeError> {
   let mut stdout = stdout();
   let (width, height) = terminal::size().map_err(|_| MainModeError::TerminalSizeUnavailable)?;
   let (width, height) = (width as i16, height as i16);
@@ -276,10 +276,14 @@ async fn render(context: &RenderContext) -> Result<(), MainModeError> {
 
   let repo_views = height - 5;
   let rendering_repos = &context.repos[..cmp::min(repo_views as usize, context.repos.len())];
+  let mut repo_selected_index = context.repo_selected_index;
+
+  repo_selected_index = repo_selected_index.min(rendering_repos.len().max(1) - 1);
+
   rendering_repos.iter().enumerate().for_each(|(i, repo)| {
     safe_move_to(&mut stdout, 0, 5 + i as i16, width, height).unwrap();
     let (before, bold, after) = split_by_matched(&repo.repo.name, &repo.matched_string);
-    if context.repo_selected_index == i {
+    if repo_selected_index == i {
       queue!(
         stdout,
         style::Print(" "),
@@ -315,6 +319,8 @@ async fn render(context: &RenderContext) -> Result<(), MainModeError> {
       .unwrap();
     }
   });
+
+  context.repo_selected_index = repo_selected_index;
 
   safe_move_to(
     &mut stdout,
