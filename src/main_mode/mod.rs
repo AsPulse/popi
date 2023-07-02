@@ -5,6 +5,7 @@ mod worker_key_input;
 mod worker_keyword_change;
 
 use crate::{
+  colors::{LIGHTER_PINK_COLOR, PINK_COLOR, BACKGROUND_PINK_COLOR},
   config::LocalStorage,
   finder::{FoundRepo, Repo, ReposFinder},
   strings::{
@@ -28,22 +29,13 @@ use std::{
   sync::Arc,
 };
 use thiserror::Error;
-use tokio::sync::{
-  mpsc::{self},
-  RwLock,
-};
+use tokio::sync::{mpsc, RwLock};
 
 use safe_methods::{safe_move_to, safe_repeat};
 use split_by_matched::split_by_matched;
 use worker_cursor_blinker::cursor_blinker;
 use worker_key_input::key_input;
 use worker_keyword_change::keyword_change;
-
-static PINK_COLOR: style::Color = style::Color::Rgb {
-  r: 255,
-  g: 25,
-  b: 94,
-};
 
 pub async fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
   let mut stdout = stdout();
@@ -110,6 +102,7 @@ pub(super) struct RenderContext {
   keyword: String,
   escape_behavior: EscapeBehavior,
   repos: Vec<FoundRepo>,
+  repo_selected_index: usize,
   cursor_show: bool,
 }
 
@@ -134,6 +127,7 @@ async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
     keyword: String::new(),
     escape_behavior: EscapeBehavior::Clear,
     repos: vec![],
+    repo_selected_index: 0,
     cursor_show: false,
   }));
 
@@ -239,7 +233,7 @@ async fn render(context: &RenderContext) -> Result<(), MainModeError> {
   let horizontal_line = safe_repeat(HORIZONTAL_LINE, width as isize - 2)?;
   queue!(
     stdout,
-    style::SetForegroundColor(style::Color::Magenta),
+    style::SetForegroundColor(LIGHTER_PINK_COLOR),
     style::Print(TOP_LEFT_CORNER),
     style::Print(&horizontal_line),
     style::Print(TOP_RIGHT_CORNER),
@@ -250,7 +244,7 @@ async fn render(context: &RenderContext) -> Result<(), MainModeError> {
   safe_move_to(&mut stdout, 0, 2, width, height)?;
   queue!(
     stdout,
-    style::SetForegroundColor(style::Color::Magenta),
+    style::SetForegroundColor(LIGHTER_PINK_COLOR),
     style::Print(VERTICAL_LINE),
     style::ResetColor,
     style::Print(" 🔎 "),
@@ -263,7 +257,7 @@ async fn render(context: &RenderContext) -> Result<(), MainModeError> {
   safe_move_to(&mut stdout, width - 1, 2, width, height)?;
   queue!(
     stdout,
-    style::SetForegroundColor(style::Color::Magenta),
+    style::SetForegroundColor(LIGHTER_PINK_COLOR),
     style::Print(VERTICAL_LINE),
     style::ResetColor,
   )
@@ -272,7 +266,7 @@ async fn render(context: &RenderContext) -> Result<(), MainModeError> {
   safe_move_to(&mut stdout, 0, 3, width, height)?;
   queue!(
     stdout,
-    style::SetForegroundColor(style::Color::Magenta),
+    style::SetForegroundColor(LIGHTER_PINK_COLOR),
     style::Print(BOTTOM_LEFT_CORNER),
     style::Print(&horizontal_line),
     style::Print(BOTTOM_RIGHT_CORNER),
@@ -285,20 +279,41 @@ async fn render(context: &RenderContext) -> Result<(), MainModeError> {
   rendering_repos.iter().enumerate().for_each(|(i, repo)| {
     safe_move_to(&mut stdout, 0, 5 + i as i16, width, height).unwrap();
     let (before, bold, after) = split_by_matched(&repo.repo.name, &repo.matched_string);
-    queue!(
-      stdout,
-      style::SetForegroundColor(style::Color::Magenta),
-      style::Print(" • "),
-      style::ResetColor,
-      style::SetForegroundColor(style::Color::White),
-      style::Print(before),
-      style::SetAttribute(style::Attribute::Bold),
-      style::Print(bold),
-      style::SetAttribute(style::Attribute::Reset),
-      style::Print(after),
-      style::ResetColor,
-    )
-    .unwrap();
+    if context.repo_selected_index == i {
+      queue!(
+        stdout,
+        style::Print(" "),
+        style::SetBackgroundColor(BACKGROUND_PINK_COLOR),
+        style::SetForegroundColor(style::Color::White),
+        style::Print(" ➤ "),
+        style::Print(before),
+        style::SetAttribute(style::Attribute::Bold),
+        style::Print(bold),
+        style::SetAttribute(style::Attribute::Reset),
+        style::SetBackgroundColor(BACKGROUND_PINK_COLOR),
+        style::SetForegroundColor(style::Color::White),
+        style::Print(after),
+        style::Print("  "),
+        style::ResetColor,
+      )
+      .unwrap();
+    } else {
+      queue!(
+        stdout,
+        style::Print(" "),
+        style::SetForegroundColor(LIGHTER_PINK_COLOR),
+        style::Print(" • "),
+        style::ResetColor,
+        style::SetForegroundColor(style::Color::White),
+        style::Print(before),
+        style::SetAttribute(style::Attribute::Bold),
+        style::Print(bold),
+        style::SetAttribute(style::Attribute::Reset),
+        style::Print(after),
+        style::ResetColor,
+      )
+      .unwrap();
+    }
   });
 
   safe_move_to(
