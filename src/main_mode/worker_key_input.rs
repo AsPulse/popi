@@ -46,7 +46,7 @@ pub(super) async fn key_input(
               } => {
                 {
                   let mut context = context.write().await;
-                  if context.repo_selected_index <= 0 { continue; }
+                  if context.repo_selected_index == 0 { continue; }
                   context.repo_selected_index -= 1;
                 }
                 contextchange_tx.send(ContextChange::RenderContextChanged).await.unwrap();
