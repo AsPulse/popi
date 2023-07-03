@@ -62,6 +62,18 @@ pub(super) async fn key_input(
                 contextchange_tx.send(ContextChange::RenderContextChanged).await.unwrap();
               }
               KeyEvent {
+                code: KeyCode::Enter,
+                ..
+              } => {
+                let context = context.read().await;
+                if let Some(repo) = context.repos.get(context.repo_selected_index) {
+                  let repo = Some(repo.repo.clone());
+                  drop(context);
+                  contextchange_tx.send(ContextChange::Finished(Ok(repo))).await.unwrap();
+                  break;
+                }
+              }
+              KeyEvent {
                 code: KeyCode::Backspace,
                 ..
               } => {
