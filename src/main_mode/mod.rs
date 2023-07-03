@@ -24,7 +24,7 @@ use crossterm::{
 };
 use crossterm::{queue, style, terminal};
 use std::{
-  cmp,
+  cmp, env,
   io::{stdout, Write},
   sync::Arc,
 };
@@ -60,7 +60,19 @@ pub async fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
   disable_raw_mode().unwrap();
 
   match main_mode_process {
-    Ok(Some(_repo)) => todo!("repo"),
+    Ok(Some(repo)) => {
+      let path = repo.path.to_str().unwrap().bold();
+      env::set_var("POPI_REPO_PATH", repo.path.to_str().unwrap());
+      println!(" {} {}", "Go ahead!".cyan().bold(), path.normal());
+      println!(
+        " {} {}{}",
+        "Path to repository was written to ".bright_black(),
+        "$POPI_REPO_PATH".bold().bright_black(),
+        ".".clear().bright_black()
+      );
+      println!();
+      std::process::exit(0);
+    }
     Ok(None) => {
       println!(" {}", "Aborting...".bright_black());
       std::process::exit(130);
