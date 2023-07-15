@@ -25,7 +25,7 @@ use crossterm::{
 use crossterm::{queue, style, terminal};
 use std::{
   cmp, env,
-  io::{stdout, Write, stderr},
+  io::{Write, stderr},
   sync::Arc,
 };
 use thiserror::Error;
@@ -38,9 +38,9 @@ use worker_key_input::key_input;
 use worker_keyword_change::keyword_change;
 
 pub async fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
-  let mut stdout = stderr();
+  let mut stderr = stderr();
   execute!(
-    stdout,
+    stderr,
     crossterm::terminal::EnterAlternateScreen,
     crossterm::cursor::Hide,
   )
@@ -51,7 +51,7 @@ pub async fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
   disable_raw_mode().unwrap();
 
   execute!(
-    stdout,
+    stderr,
     crossterm::cursor::Show,
     crossterm::terminal::LeaveAlternateScreen,
     crossterm::cursor::SetCursorStyle::DefaultUserShape,
@@ -64,18 +64,18 @@ pub async fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
     Ok(Some(repo)) => {
       let path = repo.path.to_str().unwrap().bold();
       env::set_var("POPI_REPO_PATH", repo.path.to_str().unwrap());
-      println!(" {} {}", "Go ahead!".cyan().bold(), path.normal());
-      println!(
+      eprintln!(" {} {}", "Go ahead!".cyan().bold(), path.normal());
+      eprintln!(
         " {} {}{}",
         "Path to repository was written to ".bright_black(),
         "$POPI_REPO_PATH".bold().bright_black(),
         ".".clear().bright_black()
       );
-      println!();
+      eprintln!();
       std::process::exit(0);
     }
     Ok(None) => {
-      println!(" {}", "Aborting...".bright_black());
+      eprintln!(" {}", "Aborting...".bright_black());
       std::process::exit(130);
     }
     Err(e) => {
@@ -100,7 +100,7 @@ pub enum MainModeError {
   TerminalSizeUnavailable,
   #[error("Failed to read event.")]
   EventReadError,
-  #[error("Failed to write to stdout.")]
+  #[error("Failed to write to stderr.")]
   StdoutWriteError,
   #[error("Failed to join all workers.")]
   WorkerJoinError,
@@ -191,12 +191,12 @@ async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
 }
 
 async fn render(mut context: RwLockWriteGuard<'_, RenderContext>) -> Result<(), MainModeError> {
-  let mut stdout = stderr();
+  let mut stderr = stderr();
   let (width, height) = terminal::size().map_err(|_| MainModeError::TerminalSizeUnavailable)?;
   let (width, height) = (width as i16, height as i16);
 
   queue!(
-    stdout,
+    stderr,
     terminal::Clear(terminal::ClearType::All),
     cursor::MoveTo(0, 0),
   )
@@ -210,7 +210,7 @@ async fn render(mut context: RwLockWriteGuard<'_, RenderContext>) -> Result<(), 
   );
 
   queue!(
-    stdout,
+    stderr,
     cursor::MoveTo(0, 0),
     style::SetBackgroundColor(PINK_COLOR),
     style::SetForegroundColor(style::Color::White),
@@ -221,7 +221,7 @@ async fn render(mut context: RwLockWriteGuard<'_, RenderContext>) -> Result<(), 
   .map_err(|_| MainModeError::StdoutWriteError)?;
 
   safe_move_to(
-    &mut stdout,
+    &mut stderr,
     width
       - match context.escape_behavior {
         EscapeBehavior::Clear => CLEAR_MESSAGE_LEN,
@@ -232,7 +232,7 @@ async fn render(mut context: RwLockWriteGuard<'_, RenderContext>) -> Result<(), 
     height,
   )?;
   queue!(
-    stdout,
+    stderr,
     style::SetForegroundColor(style::Color::DarkGrey),
     style::Print(match context.escape_behavior {
       EscapeBehavior::Clear => CLEAR_MESSAGE,
@@ -242,10 +242,10 @@ async fn render(mut context: RwLockWriteGuard<'_, RenderContext>) -> Result<(), 
   )
   .map_err(|_| MainModeError::StdoutWriteError)?;
 
-  safe_move_to(&mut stdout, 0, 1, width, height)?;
+  safe_move_to(&mut stderr, 0, 1, width, height)?;
   let horizontal_line = safe_repeat(HORIZONTAL_LINE, width as isize - 2)?;
   queue!(
-    stdout,
+    stderr,
     style::SetForegroundColor(LIGHTER_PINK_COLOR),
     style::Print(TOP_LEFT_CORNER),
     style::Print(&horizontal_line),
@@ -254,9 +254,9 @@ async fn render(mut context: RwLockWriteGuard<'_, RenderContext>) -> Result<(), 
   )
   .map_err(|_| MainModeError::StdoutWriteError)?;
 
-  safe_move_to(&mut stdout, 0, 2, width, height)?;
+  safe_move_to(&mut stderr, 0, 2, width, height)?;
   queue!(
-    stdout,
+    stderr,
     style::SetForegroundColor(LIGHTER_PINK_COLOR),
     style::Print(VERTICAL_LINE),
     style::ResetColor,
@@ -267,18 +267,18 @@ async fn render(mut context: RwLockWriteGuard<'_, RenderContext>) -> Result<(), 
   )
   .map_err(|_| MainModeError::StdoutWriteError)?;
 
-  safe_move_to(&mut stdout, width - 1, 2, width, height)?;
+  safe_move_to(&mut stderr, width - 1, 2, width, height)?;
   queue!(
-    stdout,
+    stderr,
     style::SetForegroundColor(LIGHTER_PINK_COLOR),
     style::Print(VERTICAL_LINE),
     style::ResetColor,
   )
   .map_err(|_| MainModeError::StdoutWriteError)?;
 
-  safe_move_to(&mut stdout, 0, 3, width, height)?;
+  safe_move_to(&mut stderr, 0, 3, width, height)?;
   queue!(
-    stdout,
+    stderr,
     style::SetForegroundColor(LIGHTER_PINK_COLOR),
     style::Print(BOTTOM_LEFT_CORNER),
     style::Print(&horizontal_line),
@@ -294,11 +294,11 @@ async fn render(mut context: RwLockWriteGuard<'_, RenderContext>) -> Result<(), 
   repo_selected_index = repo_selected_index.min(rendering_repos.len().max(1) - 1);
 
   rendering_repos.iter().enumerate().for_each(|(i, repo)| {
-    safe_move_to(&mut stdout, 0, 5 + i as i16, width, height).unwrap();
+    safe_move_to(&mut stderr, 0, 5 + i as i16, width, height).unwrap();
     let (before, bold, after) = split_by_matched(&repo.repo.name, &repo.matched_string);
     if repo_selected_index == i {
       queue!(
-        stdout,
+        stderr,
         style::Print(" "),
         style::SetBackgroundColor(BACKGROUND_PINK_COLOR),
         style::SetForegroundColor(style::Color::White),
@@ -316,7 +316,7 @@ async fn render(mut context: RwLockWriteGuard<'_, RenderContext>) -> Result<(), 
       .unwrap();
     } else {
       queue!(
-        stdout,
+        stderr,
         style::Print(" "),
         style::SetForegroundColor(LIGHTER_PINK_COLOR),
         style::Print(" • "),
@@ -336,7 +336,7 @@ async fn render(mut context: RwLockWriteGuard<'_, RenderContext>) -> Result<(), 
   context.repo_selected_index = repo_selected_index;
 
   safe_move_to(
-    &mut stdout,
+    &mut stderr,
     cmp::min(5 + context.keyword.len(), width as usize - 1) as i16,
     2,
     width,
@@ -344,16 +344,16 @@ async fn render(mut context: RwLockWriteGuard<'_, RenderContext>) -> Result<(), 
   )?;
 
   if context.cursor_show {
-    queue!(stdout, cursor::Show)
+    queue!(stderr, cursor::Show)
   } else {
-    queue!(stdout, cursor::Hide)
+    queue!(stderr, cursor::Hide)
   }
   .map_err(|_| MainModeError::StdoutWriteError)?;
 
-  queue!(stdout, cursor::SetCursorStyle::SteadyUnderScore,)
+  queue!(stderr, cursor::SetCursorStyle::SteadyUnderScore,)
     .map_err(|_| MainModeError::StdoutWriteError)?;
 
-  stdout
+  stderr
     .flush()
     .map_err(|_| MainModeError::StdoutWriteError)?;
 
