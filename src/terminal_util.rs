@@ -1,4 +1,4 @@
-use std::io::{stdin, Write, stderr};
+use std::io::{stderr, stdin, Write};
 
 pub const VERTICAL_LINE: &str = "│";
 pub const HORIZONTAL_LINE: &str = "─";

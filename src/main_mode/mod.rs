@@ -25,7 +25,7 @@ use crossterm::{
 use crossterm::{queue, style, terminal};
 use std::{
   cmp, env,
-  io::{Write, stderr},
+  io::{stderr, Write},
   sync::Arc,
 };
 use thiserror::Error;
