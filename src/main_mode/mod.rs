@@ -54,6 +54,7 @@ pub async fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
     stdout,
     crossterm::cursor::Show,
     crossterm::terminal::LeaveAlternateScreen,
+    crossterm::cursor::SetCursorStyle::DefaultUserShape,
   )
   .unwrap();
 
