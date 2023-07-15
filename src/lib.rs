@@ -42,24 +42,24 @@ pub async fn run() {
     std::process::exit(1);
   });
 
-  println!(" {}", "Loading Repositories...".bright_black());
+  eprintln!(" {}", "Loading Repositories...".bright_black());
   let mut finder = ReposFinder::new(storage.repo_paths.to_vec());
   let repos_status = finder.init().await;
-  println!(" {}\n", "Finished!".bright_black());
+  eprintln!(" {}\n", "Finished!".bright_black());
 
   if !repos_status.paths_not_found.is_empty() {
-    println!(
+    eprintln!(
       " {} Following paths are not found:",
       WARNING_PREFIX.on_yellow().black().bold(),
     );
     for path in repos_status.paths_not_found {
-      println!(
+      eprintln!(
         " {} - {}",
         VERTICAL_LINE.yellow(),
         path.to_str().unwrap_or("(Unknown Path)")
       );
     }
-    println!(" {}", VERTICAL_LINE.yellow());
+    eprintln!(" {}", VERTICAL_LINE.yellow());
 
     let warning_skip = !terminal_util::yes_or_no(format!(
       " {} {}",
@@ -70,7 +70,7 @@ pub async fn run() {
     if warning_skip {
       std::process::exit(130);
     } else {
-      println!();
+      eprintln!();
     }
   }
 
@@ -78,5 +78,5 @@ pub async fn run() {
 }
 
 fn startup_message() {
-  println!("\n {}\n", POPI_HEADER.bold().cyan());
+  eprintln!("\n {}\n", POPI_HEADER.bold().cyan());
 }
