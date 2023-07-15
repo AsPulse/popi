@@ -1,4 +1,4 @@
-use std::io::{stdin, stdout, Write};
+use std::io::{stderr, stdin, Write};
 
 pub const VERTICAL_LINE: &str = "│";
 pub const HORIZONTAL_LINE: &str = "─";
@@ -11,7 +11,7 @@ pub fn yes_or_no(question: String) -> bool {
   let mut answer = String::new();
   loop {
     print!("{} [y/n]: ", question);
-    stdout().flush().unwrap();
+    stderr().flush().unwrap();
     stdin().read_line(&mut answer).unwrap();
     match answer.trim().to_lowercase().as_str() {
       "y" | "yes" => return true,

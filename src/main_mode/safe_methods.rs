@@ -1,4 +1,4 @@
-use std::io::Stdout;
+use std::io::Stderr;
 
 use crossterm::{cursor, queue};
 
@@ -15,7 +15,7 @@ pub fn safe_repeat(s: &str, n: isize) -> Result<String, MainModeError> {
 }
 
 pub fn safe_move_to(
-  stdout: &mut Stdout,
+  stderr: &mut Stderr,
   x: i16,
   y: i16,
   width: i16,
@@ -27,7 +27,7 @@ pub fn safe_move_to(
   if y >= height || y < 0 {
     return Err(MainModeError::NotEnoughtTerminalHeight);
   }
-  queue!(stdout, cursor::MoveTo(x as u16, y as u16))
+  queue!(stderr, cursor::MoveTo(x as u16, y as u16))
     .map_err(|_| MainModeError::StdoutWriteError)?;
   Ok(())
 }
