@@ -25,7 +25,7 @@ use crossterm::{
 use crossterm::{queue, style, terminal};
 use std::{
   cmp, env,
-  io::{stdout, Write},
+  io::{stdout, Write, stderr},
   sync::Arc,
 };
 use thiserror::Error;
@@ -38,7 +38,7 @@ use worker_key_input::key_input;
 use worker_keyword_change::keyword_change;
 
 pub async fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
-  let mut stdout = stdout();
+  let mut stdout = stderr();
   execute!(
     stdout,
     crossterm::terminal::EnterAlternateScreen,
@@ -191,7 +191,7 @@ async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
 }
 
 async fn render(mut context: RwLockWriteGuard<'_, RenderContext>) -> Result<(), MainModeError> {
-  let mut stdout = stdout();
+  let mut stdout = stderr();
   let (width, height) = terminal::size().map_err(|_| MainModeError::TerminalSizeUnavailable)?;
   let (width, height) = (width as i16, height as i16);
 

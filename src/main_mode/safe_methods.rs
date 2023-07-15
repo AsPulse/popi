@@ -1,4 +1,4 @@
-use std::io::Stdout;
+use std::io::{Stdout, Stderr};
 
 use crossterm::{cursor, queue};
 
@@ -15,7 +15,7 @@ pub fn safe_repeat(s: &str, n: isize) -> Result<String, MainModeError> {
 }
 
 pub fn safe_move_to(
-  stdout: &mut Stdout,
+  stdout: &mut Stderr,
   x: i16,
   y: i16,
   width: i16,
