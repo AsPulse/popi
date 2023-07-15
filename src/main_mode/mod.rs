@@ -66,12 +66,11 @@ pub async fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
       env::set_var("POPI_REPO_PATH", repo.path.to_str().unwrap());
       eprintln!(" {} {}", "Go ahead!".cyan().bold(), path.normal());
       eprintln!(
-        " {} {}{}",
-        "Path to repository was written to ".bright_black(),
-        "$POPI_REPO_PATH".bold().bright_black(),
-        ".".clear().bright_black()
+        " {}",
+        "Path to repository was written to stdout.".bright_black(),
       );
       eprintln!();
+      println!("{}", repo.path.to_str().unwrap());
       std::process::exit(0);
     }
     Ok(None) => {
