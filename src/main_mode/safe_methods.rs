@@ -1,4 +1,4 @@
-use std::io::{Stdout, Stderr};
+use std::io::Stderr;
 
 use crossterm::{cursor, queue};
 
