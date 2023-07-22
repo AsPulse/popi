@@ -137,7 +137,7 @@ async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
 
   let shared_context = Arc::new(RwLock::<RenderContext>::new(RenderContext {
     keyword: String::new(),
-    escape_behavior: EscapeBehavior::Clear,
+    escape_behavior: EscapeBehavior::Exit,
     repos: vec![],
     repo_selected_index: 0,
     cursor_show: false,
