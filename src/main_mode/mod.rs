@@ -126,7 +126,7 @@ pub(super) enum ContextChange {
 }
 
 #[derive(Clone)]
- struct MainModeWorker {
+struct MainModeWorker {
   context: Arc<RwLock<RenderContext>>,
   contextchange_tx: mpsc::Sender<ContextChange>,
 }
