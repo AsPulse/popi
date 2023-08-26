@@ -16,6 +16,7 @@ use crate::terminal_util::VERTICAL_LINE;
 
 #[tokio::main]
 pub async fn run() {
+  colored::control::set_override(true);
   startup_message();
 
   let storage = LocalStorage::new().unwrap_or_else(|err| {
