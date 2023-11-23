@@ -1,6 +1,5 @@
 mod safe_methods;
 mod split_by_matched;
-mod worker_cursor_blinker;
 mod worker_key_input;
 mod worker_keyword_change;
 
@@ -33,7 +32,6 @@ use tokio::sync::{mpsc, RwLock, RwLockWriteGuard};
 
 use safe_methods::{safe_move_to, safe_repeat};
 use split_by_matched::split_by_matched;
-use worker_cursor_blinker::cursor_blinker;
 use worker_key_input::key_input;
 use worker_keyword_change::keyword_change;
 
