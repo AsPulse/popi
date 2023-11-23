@@ -176,12 +176,9 @@ async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
     }
   };
   contextchange_rx.close();
-  tokio::join!(
-    keyword_change_worker,
-    key_input_worker,
-  )
-  .0
-  .map_err(|_| MainModeError::WorkerJoinError)?;
+  tokio::join!(keyword_change_worker, key_input_worker,)
+    .0
+    .map_err(|_| MainModeError::WorkerJoinError)?;
   result
 }
 
