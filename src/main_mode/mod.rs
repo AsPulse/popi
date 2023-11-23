@@ -42,7 +42,7 @@ pub async fn call_main_mode(_storage: LocalStorage, finder: ReposFinder) {
   execute!(
     stderr,
     crossterm::terminal::EnterAlternateScreen,
-    crossterm::cursor::Hide,
+    crossterm::cursor::Show,
   )
   .unwrap();
 
@@ -140,7 +140,7 @@ async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
     escape_behavior: EscapeBehavior::Exit,
     repos: vec![],
     repo_selected_index: 0,
-    cursor_show: false,
+    cursor_show: true,
   }));
 
   let worker = MainModeWorker {
@@ -151,7 +151,6 @@ async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
   let keyword_change_worker =
     tokio::spawn(keyword_change(finder, keywordchange_rx, worker.clone()));
   let key_input_worker = tokio::spawn(key_input(worker.clone()));
-  let cursor_blinker_worker = tokio::spawn(cursor_blinker(worker.clone()));
 
   worker
     .contextchange_tx
@@ -182,7 +181,6 @@ async fn main_mode(finder: ReposFinder) -> Result<Option<Repo>, MainModeError> {
   tokio::join!(
     keyword_change_worker,
     key_input_worker,
-    cursor_blinker_worker
   )
   .0
   .map_err(|_| MainModeError::WorkerJoinError)?;
@@ -349,7 +347,7 @@ async fn render(mut context: RwLockWriteGuard<'_, RenderContext>) -> Result<(), 
   }
   .map_err(|_| MainModeError::StdoutWriteError)?;
 
-  queue!(stderr, cursor::SetCursorStyle::SteadyUnderScore,)
+  queue!(stderr, cursor::SetCursorStyle::BlinkingUnderScore,)
     .map_err(|_| MainModeError::StdoutWriteError)?;
 
   stderr
